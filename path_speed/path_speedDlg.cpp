@@ -52,6 +52,10 @@ END_MESSAGE_MAP()
 CpathspeedDlg::CpathspeedDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_PATH_SPEED_DIALOG, pParent)
 	
+	, m_dPlotXmin(0)
+	, m_dPlotXmax(0)
+	, m_dPlotYmin(0)
+	, m_dPlotYmax(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -62,6 +66,10 @@ void CpathspeedDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT1, m_dSampleTime);
 	DDX_Text(pDX, IDC_EDIT4, m_dThetaMax);
 	DDX_Control(pDX, IDC_COMBO_PLOT_TYPE, m_cbPlotType);
+	DDX_Text(pDX, IDC_EDIT_X_MIN, m_dPlotXmin);
+	DDX_Text(pDX, IDC_EDIT_X_MAX, m_dPlotXmax);
+	DDX_Text(pDX, IDC_EDIT_Y_MIN, m_dPlotYmin);
+	DDX_Text(pDX, IDC_EDIT_Y_MAX, m_dPlotYmax);
 }
 
 BEGIN_MESSAGE_MAP(CpathspeedDlg, CDialogEx)
@@ -74,6 +82,7 @@ BEGIN_MESSAGE_MAP(CpathspeedDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON2, &CpathspeedDlg::OnBnClickedButton2)
 	ON_BN_CLICKED(IDC_BUTTON_PLOT, &CpathspeedDlg::OnBnClickedButtonPlot)
 	ON_BN_CLICKED(IDC_BUTTON_SELECT_OUTFILE, &CpathspeedDlg::OnBnClickedButtonSelectOutfile)
+	ON_BN_CLICKED(IDC_BUTTON_ZOOM, &CpathspeedDlg::OnBnClickedButtonZoom)
 END_MESSAGE_MAP()
 
 
@@ -184,35 +193,54 @@ void CpathspeedDlg::OnPaint()
 		dXscale = (1.0 * rectChartSpace.Width() - 2.0 * PLOTXLABELGAP) / (iFileLineCounts * m_dSampleTime * pow(10, -3));
 		fclose(fpResult);*/
 
-		//抓head,取max參數
+		//抓head,取max/min參數
 		FILE* fpResult;
 		fpResult = fopen(CT2A(m_cPlotPathName), "r");
-		//maxTime, maxV, maxX, minX, maxY, minY
+		//maxTime, maxV, maxX, minX, maxY, minY, maxVx, minVx, maxVy, minVy
 		if (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5], &dResultData[6], &dResultData[7], &dResultData[8], &dResultData[9]) != EOF)
 		{
-			dXscale = (1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / dResultData[0];
-			dYscale = -(1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / dResultData[1];
 			iPlotFlag++;
 		}
 
 		PlotOrgPoint.x = 1.0 * rectChartSpace.left + PLOTORGGAP;
 		PlotOrgPoint.y = 1.0 * rectChartSpace.bottom - PLOTORGGAP;
-		dXscaleConst = PlotOrgPoint.x;
-		dYscaleConst = PlotOrgPoint.y;
 
 		switch (iPlotType)
 		{
 			case(PLOTVT):
 			{
+				double dTmin = 0;
+				double dVmin = 0;
 				iXlabel = 0;
 				iYlabel = 3;
+				if (m_bZoomFlag)
+				{
+					if (dResultData[0] >= m_dPlotXmax && m_dPlotXmax > m_dPlotXmin && m_dPlotXmin >= dTmin && dResultData[1] >= m_dPlotYmax && m_dPlotYmax > m_dPlotYmin && m_dPlotYmin >= dVmin)
+					{
+						dResultData[0] = m_dPlotXmax;
+						dResultData[1] = m_dPlotYmax;
+						dTmin = m_dPlotXmin;
+						dVmin = m_dPlotYmin;
+					}
+					else
+					{
+						MessageBox(_T("設定範圍有誤"));
+						m_bZoomFlag = FALSE;
+					}
+				}
+				dXscale = (1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dResultData[0] - dTmin);
+				dYscale = -(1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dResultData[1] - dVmin);
+				dXscaleConst = PlotOrgPoint.x - dTmin * dXscale;
+				dYscaleConst = PlotOrgPoint.y - dVmin * dYscale;
+				strPlotStr.Format(_T("%.2f"), dVmin);
+				dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y, strPlotStr); // Y axis Min
 				strPlotStr.Format(_T("%.2f"), dResultData[1]);
 				dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y - (rectChartSpace.Height() - 2.0 * PLOTORGGAP), strPlotStr); // Y axis Max
-				strPlotStr = _T("0");
+				strPlotStr.Format(_T("%.2f"), dTmin);
 				dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
 				strPlotStr.Format(_T("%.2f"), dResultData[0]);
 				dcMem.TextOutW(PlotOrgPoint.x + (rectChartSpace.Height() - 2.0 * PLOTORGGAP), rectChartSpace.bottom + 2, strPlotStr); // X axis Max
-				strPlotStr = _T("T");
+				strPlotStr = _T("T (s)");
 				dcMem.TextOutW(rectChartSpace.right + PLOTXLABELGAP, rectChartSpace.bottom + 2, strPlotStr);
 				strPlotStr = _T("V");
 				dcMem.TextOutW(rectChartSpace.left - 15, rectChartSpace.top - PLOTYLABELGAP, strPlotStr);
@@ -238,6 +266,7 @@ void CpathspeedDlg::OnPaint()
 			{
 				iXlabel = 0;
 				iYlabel = 1;
+				dXscale = (1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / dResultData[0];
 				dYscale = -(rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dResultData[2] - dResultData[3]);
 				dYscaleConst = PlotOrgPoint.y - dResultData[3] * dYscale;
 				strPlotStr.Format(_T("%.2f"), dResultData[3]);
@@ -248,7 +277,7 @@ void CpathspeedDlg::OnPaint()
 				dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
 				strPlotStr.Format(_T("%.2f"), dResultData[0]);
 				dcMem.TextOutW(PlotOrgPoint.x + (rectChartSpace.Height() - 2.0 * PLOTORGGAP), rectChartSpace.bottom + 2, strPlotStr); // X axis Max
-				strPlotStr = _T("T");
+				strPlotStr = _T("T (s)");
 				dcMem.TextOutW(rectChartSpace.right + PLOTXLABELGAP, rectChartSpace.bottom + 2, strPlotStr);
 				strPlotStr = _T("X");
 				dcMem.TextOutW(rectChartSpace.left - 15, rectChartSpace.top - PLOTYLABELGAP, strPlotStr);
@@ -259,6 +288,7 @@ void CpathspeedDlg::OnPaint()
 			{
 				iXlabel = 0;
 				iYlabel = 2;
+				dXscale = (1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / dResultData[0];
 				dYscale = -(rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dResultData[4] - dResultData[5]);
 				dYscaleConst = PlotOrgPoint.y - dResultData[5] * dYscale;
 				strPlotStr.Format(_T("%.2f"), dResultData[5]);
@@ -269,7 +299,7 @@ void CpathspeedDlg::OnPaint()
 				dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
 				strPlotStr.Format(_T("%.2f"), dResultData[0]);
 				dcMem.TextOutW(PlotOrgPoint.x + (rectChartSpace.Height() - 2.0 * PLOTORGGAP), rectChartSpace.bottom + 2, strPlotStr); // X axis Max
-				strPlotStr = _T("T");
+				strPlotStr = _T("T (s)");
 				dcMem.TextOutW(rectChartSpace.right + PLOTXLABELGAP, rectChartSpace.bottom + 2, strPlotStr);
 				strPlotStr = _T("Y");
 				dcMem.TextOutW(rectChartSpace.left - 15, rectChartSpace.top - PLOTYLABELGAP, strPlotStr);
@@ -280,6 +310,7 @@ void CpathspeedDlg::OnPaint()
 			{
 				iXlabel = 0;
 				iYlabel = 4;
+				dXscale = (1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / dResultData[0];
 				dYscale = -(rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dResultData[6] - dResultData[7]);
 				dYscaleConst = PlotOrgPoint.y - dResultData[7] * dYscale;
 				strPlotStr.Format(_T("%.2f"), dResultData[7]);
@@ -290,7 +321,7 @@ void CpathspeedDlg::OnPaint()
 				dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
 				strPlotStr.Format(_T("%.2f"), dResultData[0]);
 				dcMem.TextOutW(PlotOrgPoint.x + (rectChartSpace.Height() - 2.0 * PLOTORGGAP), rectChartSpace.bottom + 2, strPlotStr); // X axis Max
-				strPlotStr = _T("T");
+				strPlotStr = _T("T (s)");
 				dcMem.TextOutW(rectChartSpace.right + PLOTXLABELGAP, rectChartSpace.bottom + 2, strPlotStr);
 				strPlotStr = _T("Vx");
 				dcMem.TextOutW(rectChartSpace.left - 20, rectChartSpace.top - PLOTXLABELGAP, strPlotStr);
@@ -301,6 +332,7 @@ void CpathspeedDlg::OnPaint()
 			{
 				iXlabel = 0;
 				iYlabel = 5;
+				dXscale = (1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / dResultData[0];
 				dYscale = -(rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dResultData[8] - dResultData[9]);
 				dYscaleConst = PlotOrgPoint.y - dResultData[9] * dYscale;
 				strPlotStr.Format(_T("%.2f"), dResultData[9]);
@@ -311,7 +343,7 @@ void CpathspeedDlg::OnPaint()
 				dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
 				strPlotStr.Format(_T("%.2f"), dResultData[0]);
 				dcMem.TextOutW(PlotOrgPoint.x + (rectChartSpace.Height() - 2.0 * PLOTORGGAP), rectChartSpace.bottom + 2, strPlotStr); // X axis Max
-				strPlotStr = _T("T");
+				strPlotStr = _T("T (s)");
 				dcMem.TextOutW(rectChartSpace.right + PLOTXLABELGAP, rectChartSpace.bottom + 2, strPlotStr);
 				strPlotStr = _T("Vy");
 				dcMem.TextOutW(rectChartSpace.left - 20, rectChartSpace.top - PLOTXLABELGAP, strPlotStr);
@@ -338,7 +370,7 @@ void CpathspeedDlg::OnPaint()
 		CPen penLine(PS_SOLID, 1.5, RGB(99, 184, 255));
 		pOldPen = dcMem.SelectObject(&penLine);
 
-		while (fscanf(fpResult, "%lf, %lf, %lf, %lf, %lf, %lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5]) != EOF)
+		while (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5]) != EOF)
 		{
 			if (iPlotFlag == 1)
 			{
@@ -350,7 +382,25 @@ void CpathspeedDlg::OnPaint()
 			{
 				PlotEndPoint.x = dResultData[iXlabel] * dXscale + dXscaleConst;
 				PlotEndPoint.y = dResultData[iYlabel] * dYscale + dYscaleConst;
-				dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
+				if (m_bZoomFlag)
+				{
+					double dEdgeXmax = m_dPlotXmax * dXscale + dXscaleConst;
+					double dEdgeXmin = m_dPlotXmin * dXscale + dXscaleConst;
+					double dEdgeYmax = m_dPlotYmax * dYscale + dYscaleConst;
+					double dEdgeYmin = m_dPlotYmin * dYscale + dYscaleConst;
+					if (PlotEndPoint.x > dEdgeXmax || PlotEndPoint.x < dEdgeXmin || PlotEndPoint.y < dEdgeYmax || PlotEndPoint.y > dEdgeYmin)
+					{
+						dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
+					}
+					else
+					{
+						dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
+					}
+				}
+				else
+				{
+					dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
+				}
 				PlotBeginPoint.x = PlotEndPoint.x;
 				PlotBeginPoint.y = PlotEndPoint.y;
 			}
@@ -1951,6 +2001,7 @@ void CpathspeedDlg::OnBnClickedButtonPlot()
 {
 	UpdateData(TRUE);
 	m_bPlotFlag = TRUE;
+	m_bZoomFlag = FALSE;
 	InvalidateRect(m_rectPlotSpace, TRUE);
 	UpdateWindow();
 }
@@ -1959,4 +2010,14 @@ void CpathspeedDlg::OnBnClickedButtonPlot()
 void CpathspeedDlg::OnBnClickedButtonSelectOutfile()
 {
 	SelectFile(m_cPlotPathName);
+}
+
+
+void CpathspeedDlg::OnBnClickedButtonZoom()
+{
+	UpdateData(TRUE);
+	m_bPlotFlag = TRUE;
+	m_bZoomFlag = TRUE;
+	InvalidateRect(m_rectPlotSpace, TRUE);
+	UpdateWindow();
 }

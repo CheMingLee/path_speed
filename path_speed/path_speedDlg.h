@@ -75,6 +75,11 @@ public:
 	double m_dSampleTime = 1;
 	double m_dThetaMax = 10;
 	bool m_bPlotFlag = FALSE;
+	bool m_bZoomFlag = FALSE;
+	double m_dPlotXmin;
+	double m_dPlotXmax;
+	double m_dPlotYmin;
+	double m_dPlotYmax;
 	double CheckTheta(double CosTheta, double SinTheta, double Theta);
 	double CheckMax(double a, double b);
 	double CheckMin(double a, double b);
@@ -88,6 +93,7 @@ public:
 	afx_msg void OnBnClickedButton2();
 	afx_msg void OnBnClickedButtonPlot();
 	afx_msg void OnBnClickedButtonSelectOutfile();
+	afx_msg void OnBnClickedButtonZoom();
 	CString m_cInputPathName;
 	CString m_cOutputPathName = _T("D:\\result.txt");
 	CString m_cPlotPathName = m_cOutputPathName;
