@@ -19,9 +19,11 @@
 #define PLOTYT 3
 #define PLOTVXT 4
 #define PLOTVYT 5
-#define PLOTGAP 25
-#define PLOTXLABELGAP 10
-#define PLOTYLABELGAP 20
+#define PLOTGAP 70
+#define PLOTXLABELGAP 20
+#define PLOTYLABELGAP 30
+#define PLOTORGGAP 20
+#define PLOTYMAXMINGAP 55
 
 typedef struct {
 	int m_iID;
