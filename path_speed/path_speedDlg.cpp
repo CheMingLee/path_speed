@@ -159,7 +159,7 @@ void CpathspeedDlg::OnPaint()
 		POINTXY PlotBeginPoint;
 		POINTXY PlotEndPoint;
 		int iPlotFlag = 0;
-		double dResultData[6];
+		double dResultData[10];
 		double dXscale = 1; // dXscale * X + dXscaleConst = X_pixel
 		double dYscale = 1; // dYscale * Y + dYscaleConst = Y_pixel
 		double dXscaleConst = 0;
@@ -188,7 +188,7 @@ void CpathspeedDlg::OnPaint()
 		FILE* fpResult;
 		fpResult = fopen(CT2A(m_cPlotPathName), "r");
 		//maxTime, maxV, maxX, minX, maxY, minY
-		if (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5]) != EOF)
+		if (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5], &dResultData[6], &dResultData[7], &dResultData[8], &dResultData[9]) != EOF)
 		{
 			dXscale = (1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / dResultData[0];
 			dYscale = -(1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / dResultData[1];
@@ -280,11 +280,11 @@ void CpathspeedDlg::OnPaint()
 			{
 				iXlabel = 0;
 				iYlabel = 4;
-				dYscale = -(rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (2.0 * dResultData[1]);
-				dYscaleConst = PlotOrgPoint.y - (-dResultData[1] * dYscale);
-				strPlotStr.Format(_T("%.2f"), -dResultData[1]);
+				dYscale = -(rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dResultData[6] - dResultData[7]);
+				dYscaleConst = PlotOrgPoint.y - dResultData[7] * dYscale;
+				strPlotStr.Format(_T("%.2f"), dResultData[7]);
 				dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y, strPlotStr); // Y axis Min
-				strPlotStr.Format(_T("%.2f"), dResultData[1]);
+				strPlotStr.Format(_T("%.2f"), dResultData[6]);
 				dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y - (rectChartSpace.Height() - 2.0 * PLOTORGGAP), strPlotStr); // Y axis Max
 				strPlotStr = _T("0");
 				dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
@@ -301,11 +301,11 @@ void CpathspeedDlg::OnPaint()
 			{
 				iXlabel = 0;
 				iYlabel = 5;
-				dYscale = -(rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (2.0 * dResultData[1]);
-				dYscaleConst = PlotOrgPoint.y - (-dResultData[1] * dYscale);
-				strPlotStr.Format(_T("%.2f"), -dResultData[1]);
+				dYscale = -(rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dResultData[8] - dResultData[9]);
+				dYscaleConst = PlotOrgPoint.y - dResultData[9] * dYscale;
+				strPlotStr.Format(_T("%.2f"), dResultData[9]);
 				dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y, strPlotStr); // Y axis Min
-				strPlotStr.Format(_T("%.2f"), dResultData[1]);
+				strPlotStr.Format(_T("%.2f"), dResultData[8]);
 				dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y - (rectChartSpace.Height() - 2.0 * PLOTORGGAP), strPlotStr); // Y axis Max
 				strPlotStr = _T("0");
 				dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
@@ -725,6 +725,10 @@ void CpathspeedDlg::OnBnClickedButton2()
 		double dMaxOutV = 0;
 		double dMinOutX = 0;
 		double dMinOutY = 0;
+		double dMaxOutVx = 0;
+		double dMaxOutVy = 0;
+		double dMinOutVx = 0;
+		double dMinOutVy = 0;
 
 		// Command classification
 		for (int i = 0; i < m_arrCmdArray.GetSize(); i++) {
@@ -756,11 +760,6 @@ void CpathspeedDlg::OnBnClickedButton2()
 				CurrentCmd = m_arrCmdArray[i];
 				dSpeed[0] = CurrentCmd.m_dParams[0];
 				dSpeed[1] = CurrentCmd.m_dParams[1];
-				dMaxOutV = fabs(dSpeed[1]);
-				if (dMaxOutV < fabs(dSpeed[0]))
-				{
-					dMaxOutV = fabs(dSpeed[0]);
-				}
 				break;
 			}
 			case ACC: {
@@ -822,7 +821,7 @@ void CpathspeedDlg::OnBnClickedButton2()
 						dBeginPoint[0] = dEndPoint[0];
 						dBeginPoint[1] = dEndPoint[1];
 						m_arrPathPointArray.RemoveAll();
-						MessageBox(_T("同點直線"));
+						//MessageBox(_T("同點直線"));
 						break;
 					}
 					else // Arc 正圓
@@ -1003,6 +1002,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 									dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 									dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 									dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+									dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+									dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+									dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+									dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+									dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 								}
 							}
 							else // 加速到Vm再減速
@@ -1042,6 +1046,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= S1 && dDistanceSum < dCurrentDistance)
 										{
@@ -1063,6 +1072,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 										}
 									}
 									else // 此小線段都在加速區域
@@ -1088,6 +1102,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 										}
 									}
 								}
@@ -1123,6 +1142,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= S1 && dDistanceSum < dCurrentDistance)
 										{
@@ -1144,6 +1168,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 										}
 									}
 									else // 此小線段會進減速區域
@@ -1171,6 +1200,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= S1 && dDistanceSum < dCurrentDistance)
 										{
@@ -1192,6 +1226,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 										}
 									}
 								}
@@ -1231,6 +1270,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 									while (dDistanceSum >= S1 && dDistanceSum < dCurrentDistance)
 									{
@@ -1252,6 +1296,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 								}
 								else
@@ -1277,6 +1326,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 								}
 							}
@@ -1315,6 +1369,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 									while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
 									{
@@ -1337,6 +1396,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 									while (dDistanceSum >= (S1 + S2) && dDistanceSum < dCurrentDistance)
 									{
@@ -1358,6 +1422,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 								}
 								else
@@ -1386,6 +1455,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 									while (dDistanceSum >= S1 && dDistanceSum < dCurrentDistance)
 									{
@@ -1407,6 +1481,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 								}
 							}
@@ -1445,6 +1524,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 									while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
 									{
@@ -1467,6 +1551,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 									while (dDistanceSum >= (S1 + S2) && dDistanceSum < dCurrentDistance)
 									{
@@ -1488,6 +1577,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 								}
 								else
@@ -1517,6 +1611,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 									while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
 									{
@@ -1539,6 +1638,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 									while (dDistanceSum >= (S1 + S2) && dDistanceSum < dCurrentDistance)
 									{
@@ -1560,6 +1664,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 								}
 							}
@@ -1598,6 +1707,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 									dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 									dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 									dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+									dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+									dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+									dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+									dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+									dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 								}
 							}
 							else // 加速到Vm再減速
@@ -1637,6 +1751,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 									while (dDistanceSum >= S1 && dDistanceSum < dCurrentDistance)
 									{
@@ -1658,6 +1777,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 									}
 								}
 							}
@@ -1689,6 +1813,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 								dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 								dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 								dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+								dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+								dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+								dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+								dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+								dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 							}
 							while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
 							{
@@ -1711,6 +1840,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 								dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 								dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 								dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+								dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+								dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+								dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+								dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+								dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 							}
 							while (dDistanceSum >= (S1 + S2) && dDistanceSum < dCurrentDistance)
 							{
@@ -1732,6 +1866,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 								dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 								dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 								dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+								dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+								dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+								dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+								dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+								dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 							}
 						}
 					}
@@ -1750,6 +1889,11 @@ void CpathspeedDlg::OnBnClickedButton2()
 					dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
 					dMinOutX = CheckMin(dMinOutX, OutPoint.x);
 					dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+					dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+					dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+					dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+					dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+					dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
 
 					dTimeStart += dTimeTotal;
 					dVStart = dVEnd;
@@ -1787,7 +1931,7 @@ void CpathspeedDlg::OnBnClickedButton2()
 
 		FILE* ResultFile;
 		ResultFile = fopen(CT2A(m_cOutputPathName), "w");
-		fprintf(ResultFile, "%lf,%lf,%lf,%lf,%lf,%lf\n", dTimeStart, dMaxOutV, dMaxOutX, dMinOutX, dMaxOutY, dMinOutY);
+		fprintf(ResultFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", dTimeStart, dMaxOutV, dMaxOutX, dMinOutX, dMaxOutY, dMinOutY, dMaxOutVx, dMinOutVx, dMaxOutVy, dMinOutVy);
 		fclose(ResultFile);
 		ResultFile = fopen(CT2A(m_cOutputPathName), "a");
 		char tmp[1000];
