@@ -24,6 +24,10 @@
 #define PLOTYLABELGAP 30
 #define PLOTORGGAP 20
 #define PLOTYMAXMINGAP 55
+#define XMIN 0
+#define XMAX 1
+#define YMIN 2
+#define YMAX 3
 
 typedef struct {
 	int m_iID;
@@ -105,4 +109,5 @@ public:
 	CArray<PARAMS_VA_MAX, PARAMS_VA_MAX&> m_arrPathVAMaxArray;
 	CRect m_rectPlotSpace;
 	CComboBox m_cbPlotType;
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
 };
