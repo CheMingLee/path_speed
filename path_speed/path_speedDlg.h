@@ -110,4 +110,5 @@ public:
 	CRect m_rectPlotSpace;
 	CComboBox m_cbPlotType;
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 };

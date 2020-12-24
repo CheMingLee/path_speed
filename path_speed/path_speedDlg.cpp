@@ -83,6 +83,7 @@ BEGIN_MESSAGE_MAP(CpathspeedDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_PLOT, &CpathspeedDlg::OnBnClickedButtonPlot)
 	ON_BN_CLICKED(IDC_BUTTON_SELECT_OUTFILE, &CpathspeedDlg::OnBnClickedButtonSelectOutfile)
 	ON_BN_CLICKED(IDC_BUTTON_ZOOM, &CpathspeedDlg::OnBnClickedButtonZoom)
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -289,22 +290,23 @@ void CpathspeedDlg::OnPaint()
 				break;
 			}
 		}
-
+		
 		if (m_bZoomFlag)
 		{
-			if (dPlotMaxMin[XMAX] >= m_dPlotXmax && m_dPlotXmax >= m_dPlotXmin && m_dPlotXmin >= dPlotMaxMin[XMIN] && dPlotMaxMin[YMAX] >= m_dPlotYmax && m_dPlotYmax >= m_dPlotYmin && m_dPlotYmin >= dPlotMaxMin[YMIN])
-			{
-				dPlotMaxMin[XMIN] = m_dPlotXmin; // Xmin
-				dPlotMaxMin[XMAX] = m_dPlotXmax; // Xmax
-				dPlotMaxMin[YMIN] = m_dPlotYmin; // Ymin
-				dPlotMaxMin[YMAX] = m_dPlotYmax; // Ymax
-			}
-			else
-			{
-				MessageBox(_T("設定範圍有誤"));
-				m_bZoomFlag = FALSE;
-			}
+			dPlotMaxMin[XMIN] = m_dPlotXmin; // Xmin
+			dPlotMaxMin[XMAX] = m_dPlotXmax; // Xmax
+			dPlotMaxMin[YMIN] = m_dPlotYmin; // Ymin
+			dPlotMaxMin[YMAX] = m_dPlotYmax; // Ymax
 		}
+		else
+		{
+			m_dPlotXmin = dPlotMaxMin[XMIN];
+			m_dPlotXmax = dPlotMaxMin[XMAX];
+			m_dPlotYmin = dPlotMaxMin[YMIN];
+			m_dPlotYmax = dPlotMaxMin[YMAX];
+			UpdateData(FALSE);
+		}
+
 		dXscale = (1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]);
 		dYscale = -(1.0 * rectChartSpace.Height() - 2.0 * PLOTORGGAP) / (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]);
 		if (dPlotMaxMin[XMIN] == dPlotMaxMin[XMAX] && dPlotMaxMin[YMIN] == dPlotMaxMin[YMAX])
@@ -2000,6 +2002,8 @@ void CpathspeedDlg::OnBnClickedButtonPlot()
 	m_bZoomFlag = FALSE;
 	InvalidateRect(m_rectPlotSpace, TRUE);
 	UpdateWindow();
+
+
 }
 
 
@@ -2031,3 +2035,11 @@ BOOL CpathspeedDlg::PreTranslateMessage(MSG* pMsg)
 	return CDialogEx::PreTranslateMessage(pMsg);
 }
 
+
+
+void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	// TODO: 在此加入您的訊息處理常式程式碼和 (或) 呼叫預設值
+
+	CDialogEx::OnTimer(nIDEvent);
+}
