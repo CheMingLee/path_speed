@@ -384,6 +384,10 @@ void CpathspeedDlg::OnPaint()
 					{
 						dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
 					}
+					else if (PlotBeginPoint.x > dEdgeXmax || PlotBeginPoint.x < dEdgeXmin || PlotBeginPoint.y < dEdgeYmax || PlotBeginPoint.y > dEdgeYmin)
+					{
+						dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
+					}
 					else
 					{
 						dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
