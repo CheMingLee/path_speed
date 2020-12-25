@@ -15,6 +15,7 @@
 #define IDC_BUTTON3                     1004
 #define IDC_BUTTON_SELECTFILE           1004
 #define IDC_BUTTON_PLOT                 1004
+#define IDC_EDIT3                       1005
 #define IDC_EDIT4                       1006
 #define IDC_CHART                       1008
 #define IDC_COMBO_PLOT_TYPE             1009

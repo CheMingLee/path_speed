@@ -2059,6 +2059,16 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		fclose(OutFile);
 		OutFile = fopen("D:\\tmpResult.csv", "r");
 
+		if (MessageBox(_T("目前結果儲存在: ")+ m_cOutputPathName+_T("\n是否另存新檔?"), _T("計算完成"), MB_OKCANCEL) == IDOK)
+		{
+			TCHAR szFilters[] = _T("CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||");
+			CFileDialog fileDlg(FALSE, _T("csv"), _T("*.csv"), OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters);
+			if (fileDlg.DoModal() == IDOK)
+			{
+				m_cOutputPathName = fileDlg.GetPathName();
+			}
+		}
+
 		FILE* ResultFile;
 		ResultFile = fopen(CT2A(m_cOutputPathName), "w");
 		fprintf(ResultFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", dTimeStart, dMaxOutV, dMaxOutX, dMinOutX, dMaxOutY, dMinOutY, dMaxOutVx, dMinOutVx, dMaxOutVy, dMinOutVy, dMaxOutA, dMinOutA);
@@ -2071,8 +2081,6 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		}
 		fclose(ResultFile);
 		fclose(OutFile);
-
-		MessageBox(_T("計算完成"));
 	}
 }
 
