@@ -177,7 +177,7 @@ void CpathspeedDlg::OnPaint()
 		POINTXY PlotBeginPoint;
 		POINTXY PlotEndPoint;
 		int iPlotFlag = 0;
-		double dResultData[10];
+		double dResultData[12];
 		double dXscale = 1; // dXscale * X + dXscaleConst = X_pixel
 		double dYscale = 1; // dYscale * Y + dYscaleConst = Y_pixel
 		double dXscaleConst = 0;
@@ -192,12 +192,14 @@ void CpathspeedDlg::OnPaint()
 		double dTmin = 0;
 		double dVmin = 0;
 		double dPlotMaxMin[4]; // Xmin, Xmax, Ymin, Ymax
+		bool bPlotVflag = FALSE;
+		bool bPlotAflag = FALSE;
 
 		//抓head,取max/min參數
 		FILE* fpResult;
 		fpResult = fopen(CT2A(m_cPlotPathName), "r");
-		//maxTime, maxV, maxX, minX, maxY, minY, maxVx, minVx, maxVy, minVy
-		if (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5], &dResultData[6], &dResultData[7], &dResultData[8], &dResultData[9]) != EOF)
+		//maxTime, maxV, maxX, minX, maxY, minY, maxVx, minVx, maxVy, minVy, maxA, minA
+		if (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5], &dResultData[6], &dResultData[7], &dResultData[8], &dResultData[9], &dResultData[10], &dResultData[11]) != EOF)
 		{
 			iPlotFlag++;
 		}
@@ -207,21 +209,10 @@ void CpathspeedDlg::OnPaint()
 
 		switch (iPlotType)
 		{
-			case(PLOTVT):
-			{
-				iXlabel = 0;
-				iYlabel = 3;
-				dPlotMaxMin[XMIN] = dTmin; // Xmin
-				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
-				dPlotMaxMin[YMIN] = dVmin; // Ymin
-				dPlotMaxMin[YMAX] = dResultData[1]; // Ymax
-				strPlotXlabel = _T("T (s)");
-				strPlotYlabel = _T("V");
-				break;
-			}
-
 			case(PLOTXY):
 			{
+				bPlotVflag = FALSE;
+				bPlotAflag = FALSE;
 				iXlabel = 1;
 				iYlabel = 2;
 				dPlotMaxMin[XMIN] = dResultData[3]; // Xmin
@@ -235,6 +226,8 @@ void CpathspeedDlg::OnPaint()
 
 			case(PLOTXT):
 			{
+				bPlotVflag = FALSE;
+				bPlotAflag = FALSE;
 				iXlabel = 0;
 				iYlabel = 1;
 				dPlotMaxMin[XMIN] = dTmin; // Xmin
@@ -248,6 +241,8 @@ void CpathspeedDlg::OnPaint()
 
 			case(PLOTYT):
 			{
+				bPlotVflag = FALSE;
+				bPlotAflag = FALSE;
 				iXlabel = 0;
 				iYlabel = 2;
 				dPlotMaxMin[XMIN] = dTmin; // Xmin
@@ -261,8 +256,10 @@ void CpathspeedDlg::OnPaint()
 
 			case(PLOTVXT):
 			{
+				bPlotVflag = TRUE;
+				bPlotAflag = FALSE;
 				iXlabel = 0;
-				iYlabel = 4;
+				iYlabel = 1;
 				dPlotMaxMin[XMIN] = dTmin; // Xmin
 				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
 				dPlotMaxMin[YMIN] = dResultData[7]; // Ymin
@@ -274,8 +271,10 @@ void CpathspeedDlg::OnPaint()
 
 			case(PLOTVYT):
 			{
+				bPlotVflag = TRUE;
+				bPlotAflag = FALSE;
 				iXlabel = 0;
-				iYlabel = 5;
+				iYlabel = 2;
 				dPlotMaxMin[XMIN] = dTmin; // Xmin
 				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
 				dPlotMaxMin[YMIN] = dResultData[9]; // Ymin
@@ -285,8 +284,40 @@ void CpathspeedDlg::OnPaint()
 				break;
 			}
 
+			case(PLOTAXT):
+			{
+				bPlotVflag = TRUE;
+				bPlotAflag = TRUE;
+				iXlabel = 0;
+				iYlabel = 1;
+				dPlotMaxMin[XMIN] = dTmin; // Xmin
+				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
+				dPlotMaxMin[YMIN] = dResultData[11]; // Ymin
+				dPlotMaxMin[YMAX] = dResultData[10]; // Ymax
+				strPlotXlabel = _T("T (s)");
+				strPlotYlabel = _T("Ax");
+				break;
+			}
+
+			case(PLOTAYT):
+			{
+				bPlotVflag = TRUE;
+				bPlotAflag = TRUE;
+				iXlabel = 0;
+				iYlabel = 2;
+				dPlotMaxMin[XMIN] = dTmin; // Xmin
+				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
+				dPlotMaxMin[YMIN] = dResultData[11]; // Ymin
+				dPlotMaxMin[YMAX] = dResultData[10]; // Ymax
+				strPlotXlabel = _T("T (s)");
+				strPlotYlabel = _T("Yx");
+				break;
+			}
+
 			default: // XY
 			{
+				bPlotVflag = FALSE;
+				bPlotAflag = FALSE;
 				iXlabel = 1;
 				iYlabel = 2;
 				dPlotMaxMin[XMIN] = dResultData[3]; // Xmin
@@ -372,18 +403,43 @@ void CpathspeedDlg::OnPaint()
 		CPen penLine(PS_SOLID, 1.5, RGB(99, 184, 255));
 		pOldPen = dcMem.SelectObject(&penLine);
 
-		while (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5]) != EOF)
+		double dLastResultDataX = 0;
+		double dLastResultDataY = 0;
+		double dLastV = 0;
+		double dCurrentV = 0;
+
+		while (fscanf(fpResult, "%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2]) != EOF)
 		{
 			if (iPlotFlag == 1)
 			{
 				PlotBeginPoint.x = dResultData[iXlabel] * dXscale + dXscaleConst;
 				PlotBeginPoint.y = dResultData[iYlabel] * dYscale + dYscaleConst;
+				if (bPlotVflag)
+				{
+					dCurrentV = 0;
+					PlotBeginPoint.y = dCurrentV * dYscale + dYscaleConst;
+					dLastResultDataX = dResultData[iXlabel];
+					dLastResultDataY = dResultData[iYlabel];
+					dLastV = dCurrentV;
+				}
 				dcMem.MoveTo(PlotBeginPoint.x, PlotBeginPoint.y);
 			}
 			else
 			{
 				PlotEndPoint.x = dResultData[iXlabel] * dXscale + dXscaleConst;
 				PlotEndPoint.y = dResultData[iYlabel] * dYscale + dYscaleConst;
+				if (bPlotVflag)
+				{
+					dCurrentV = (dResultData[iYlabel] - dLastResultDataY) / (dResultData[iXlabel] - dLastResultDataX);
+					PlotEndPoint.y = dCurrentV * dYscale + dYscaleConst;
+					if (bPlotAflag)
+					{
+						PlotEndPoint.y = ((dCurrentV - dLastV) / (dResultData[iXlabel] - dLastResultDataX)) * dYscale + dYscaleConst;
+					}
+					dLastResultDataX = dResultData[iXlabel];
+					dLastResultDataY = dResultData[iYlabel];
+					dLastV = dCurrentV;
+				}
 				if (m_bZoomFlag)
 				{
 					double dEdgeXmax = m_dPlotXmax * dXscale + dXscaleConst;
@@ -802,6 +858,8 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		double dMaxOutVy = 0;
 		double dMinOutVx = 0;
 		double dMinOutVy = 0;
+		double dMaxOutA = 0;
+		double dMinOutA = 0;
 
 		// Command classification
 		for (int i = 0; i < m_arrCmdArray.GetSize(); i++) {
@@ -825,7 +883,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 				OutVT.v = dVStart; // 起始速度為0
 				OutVxVy.x = 0;
 				OutVxVy.y = 0;
-				fprintf(OutFile, "%lf,%lf,%lf,%lf,%lf,%lf\n", OutVT.t, OutPoint.x, OutPoint.y, OutVT.v, OutVxVy.x, OutVxVy.y);
+				fprintf(OutFile, "%lf,%lf,%lf\n", OutVT.t, OutPoint.x, OutPoint.y);
 				break;
 			}
 			case SPEED: {
@@ -1024,10 +1082,6 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 				OutVT.v = dVStart;
 				OutVT.t = dTimeStart;
 
-				/*CArray<POINTXY, POINTXY&> arrSortX;
-				CArray<POINTXY, POINTXY&> arrSortY;
-				CArray<SPEEDVT, SPEEDVT&> arrSortV;*/
-
 				for (int i = 0; i < m_arrPathPointArray.GetSize() - 1; i++)
 				{
 					dCurrentDistance = sqrt(pow((m_arrPathPointArray.GetAt(i + 1).x - m_arrPathPointArray.GetAt(i).x), 2) + pow((m_arrPathPointArray.GetAt(i + 1).y - m_arrPathPointArray.GetAt(i).y), 2));
@@ -1036,6 +1090,9 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					
 					dVmax = m_arrPathVAMaxArray.GetAt(i).m_dVmax;
 					dAmax = m_arrPathVAMaxArray.GetAt(i).m_dAmax;
+
+					dMaxOutA = CheckMax(dMaxOutA, dAmax);
+					dMinOutA = -dMaxOutA;
 
 					dNextVmax = m_arrPathVAMaxArray.GetAt(i + 1).m_dVmax;
 					
@@ -1976,7 +2033,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 				// 輸出此線段結果
 				for (int i = 0; i < m_arrOutXYArray.GetSize(); i++)
 				{
-					fprintf(OutFile, "%lf,%lf,%lf,%lf,%lf,%lf\n", m_arrOutVTArray.GetAt(i).t, m_arrOutXYArray.GetAt(i).x, m_arrOutXYArray.GetAt(i).y, m_arrOutVTArray.GetAt(i).v, m_arrOutVxVyArray.GetAt(i).x, m_arrOutVxVyArray.GetAt(i).y);
+					fprintf(OutFile, "%lf,%lf,%lf\n", m_arrOutVTArray.GetAt(i).t, m_arrOutXYArray.GetAt(i).x, m_arrOutXYArray.GetAt(i).y);
 				}
 
 				// 計算完成, 更新參數
@@ -2004,7 +2061,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 
 		FILE* ResultFile;
 		ResultFile = fopen(CT2A(m_cOutputPathName), "w");
-		fprintf(ResultFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", dTimeStart, dMaxOutV, dMaxOutX, dMinOutX, dMaxOutY, dMinOutY, dMaxOutVx, dMinOutVx, dMaxOutVy, dMinOutVy);
+		fprintf(ResultFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", dTimeStart, dMaxOutV, dMaxOutX, dMinOutX, dMaxOutY, dMinOutY, dMaxOutVx, dMinOutVx, dMaxOutVy, dMinOutVy, dMaxOutA, dMinOutA);
 		fclose(ResultFile);
 		ResultFile = fopen(CT2A(m_cOutputPathName), "a");
 		char tmp[1000];
