@@ -20,11 +20,15 @@
 #define IDC_COMBO_PLOT_TYPE             1009
 #define IDC_BUTTON_SELECT_OUTFILE       1010
 #define IDC_LIST1                       1011
+#define IDC_BUTTON_SELECT_PLOT          1011
 #define IDC_EDIT_X_MAX                  1012
 #define IDC_EDIT_Y_MIN                  1013
 #define IDC_EDIT_Y_MAX                  1014
 #define IDC_BUTTON5                     1016
 #define IDC_BUTTON_ZOOM                 1016
+#define IDC_STATIC_SELT_CMD             1017
+#define IDC_STATIC_SELT_RES             1019
+#define IDC_STATIC_SELT_PLOT            1020
 
 // Next default values for new objects
 // 
@@ -32,7 +36,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1017
+#define _APS_NEXT_CONTROL_VALUE         1018
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

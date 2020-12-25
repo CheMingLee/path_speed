@@ -76,10 +76,10 @@ protected:
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
 public:
-	double m_dSampleTime = 1;
-	double m_dThetaMax = 10;
-	bool m_bPlotFlag = FALSE;
-	bool m_bZoomFlag = FALSE;
+	double m_dSampleTime;
+	double m_dThetaMax;
+	bool m_bPlotFlag;
+	bool m_bZoomFlag;
 	double m_dPlotXmin;
 	double m_dPlotXmax;
 	double m_dPlotYmin;
@@ -87,20 +87,21 @@ public:
 	double CheckTheta(double CosTheta, double SinTheta, double Theta);
 	double CheckMax(double a, double b);
 	double CheckMin(double a, double b);
-	void SelectFile(CString& pathName);
+	void SelectInputFile(CString& pathName);
+	void SelectOutputFile(CString& pathName);
 	void ReadCommand(CString pathName, CArray<CMD, CMD&>& CmdArray);
 	void SelectPathVAmax(int cmd, double speed[2], double acc[2], CArray<PARAMS_VA_MAX, PARAMS_VA_MAX&>& PathVAMaxArray);
 	void CalArcPoint(POINTXY BeginP, CMD Cmd, CArray<POINTXY, POINTXY&>& PathPointArray, double speed[2], double acc[2], CArray<PARAMS_VA_MAX, PARAMS_VA_MAX&>& PathVAMaxArray);
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnBnClickedCancel();
-	afx_msg void OnBnClickedButton1();
-	afx_msg void OnBnClickedButton2();
+	afx_msg void OnBnClickedButtonSelectCommand();
+	afx_msg void OnBnClickedButtonCaculate();
 	afx_msg void OnBnClickedButtonPlot();
 	afx_msg void OnBnClickedButtonSelectOutfile();
 	afx_msg void OnBnClickedButtonZoom();
 	CString m_cInputPathName;
-	CString m_cOutputPathName = _T("D:\\result.txt");
-	CString m_cPlotPathName = m_cOutputPathName;
+	CString m_cOutputPathName;
+	CString m_cPlotPathName;
 	CArray<CMD, CMD&> m_arrCmdArray;
 	CArray<POINTXY, POINTXY&> m_arrOutXYArray;
 	CArray<SPEEDVT, SPEEDVT&> m_arrOutVTArray;
@@ -111,4 +112,5 @@ public:
 	CComboBox m_cbPlotType;
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg void OnBnClickedButtonSelectPlot();
 };

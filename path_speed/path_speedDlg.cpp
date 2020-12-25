@@ -52,6 +52,8 @@ END_MESSAGE_MAP()
 CpathspeedDlg::CpathspeedDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_PATH_SPEED_DIALOG, pParent)
 	
+	, m_dSampleTime(1)
+	, m_dThetaMax(10)
 	, m_dPlotXmin(0)
 	, m_dPlotXmax(0)
 	, m_dPlotYmin(0)
@@ -78,12 +80,13 @@ BEGIN_MESSAGE_MAP(CpathspeedDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDOK, &CpathspeedDlg::OnBnClickedOk)
 	ON_BN_CLICKED(IDCANCEL, &CpathspeedDlg::OnBnClickedCancel)
-	ON_BN_CLICKED(IDC_BUTTON1, &CpathspeedDlg::OnBnClickedButton1)
-	ON_BN_CLICKED(IDC_BUTTON2, &CpathspeedDlg::OnBnClickedButton2)
+	ON_BN_CLICKED(IDC_BUTTON1, &CpathspeedDlg::OnBnClickedButtonSelectCommand)
+	ON_BN_CLICKED(IDC_BUTTON2, &CpathspeedDlg::OnBnClickedButtonCaculate)
 	ON_BN_CLICKED(IDC_BUTTON_PLOT, &CpathspeedDlg::OnBnClickedButtonPlot)
 	ON_BN_CLICKED(IDC_BUTTON_SELECT_OUTFILE, &CpathspeedDlg::OnBnClickedButtonSelectOutfile)
 	ON_BN_CLICKED(IDC_BUTTON_ZOOM, &CpathspeedDlg::OnBnClickedButtonZoom)
 	ON_WM_TIMER()
+	ON_BN_CLICKED(IDC_BUTTON_SELECT_PLOT, &CpathspeedDlg::OnBnClickedButtonSelectPlot)
 END_MESSAGE_MAP()
 
 
@@ -119,12 +122,17 @@ BOOL CpathspeedDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 設定小圖示
 
 	// TODO: 在此加入額外的初始設定
-
+	m_bPlotFlag = FALSE;
+	m_bZoomFlag = FALSE;
 	GetDlgItem(IDC_CHART)->GetWindowRect(&m_rectPlotSpace);
 	ScreenToClient(&m_rectPlotSpace);
-	
 	m_cbPlotType.SetCurSel(PLOTXY);
-	
+	m_cInputPathName = _T("");
+	m_cOutputPathName = _T("D:\\result.csv");
+	m_cPlotPathName = m_cOutputPathName;
+	GetDlgItem(IDC_STATIC_SELT_RES)->SetWindowTextW(m_cOutputPathName);
+	GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
+
 	return TRUE;  // 傳回 TRUE，除非您對控制項設定焦點
 }
 
@@ -461,11 +469,20 @@ void CpathspeedDlg::OnBnClickedCancel()
 }
 
 
-void CpathspeedDlg::SelectFile(CString& pathName)
+void CpathspeedDlg::SelectInputFile(CString& pathName)
 {
-	// select file
-	TCHAR szFilters[] = _T("Text Files (*.txt)|*.txt|CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||");
+	TCHAR szFilters[] = _T("Text Files (*.txt)|*.txt|All Files (*.*)|*.*||");
 	CFileDialog fileDlg(TRUE, _T("txt"), _T("*.txt"), OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters);
+	if (fileDlg.DoModal() == IDOK)
+	{
+		pathName = fileDlg.GetPathName();
+	}
+}
+
+void CpathspeedDlg::SelectOutputFile(CString& pathName)
+{
+	TCHAR szFilters[] = _T("CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||");
+	CFileDialog fileDlg(TRUE, _T("csv"), _T("*.csv"), OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters);
 	if (fileDlg.DoModal() == IDOK)
 	{
 		pathName = fileDlg.GetPathName();
@@ -710,23 +727,31 @@ void CpathspeedDlg::CalArcPoint(POINTXY BeginP, CMD Cmd, CArray<POINTXY, POINTXY
 	}
 }
 
-void CpathspeedDlg::OnBnClickedButton1()
+void CpathspeedDlg::OnBnClickedButtonSelectCommand()
 {
-	SelectFile(m_cInputPathName);
+	SelectInputFile(m_cInputPathName);
+	GetDlgItem(IDC_STATIC_SELT_CMD)->SetWindowTextW(m_cInputPathName);
 }
 
-void CpathspeedDlg::OnBnClickedButton2()
+void CpathspeedDlg::OnBnClickedButtonCaculate()
 {
 	UpdateData(TRUE);
 	if(m_dSampleTime <= 0) {
 		MessageBox(_T("Error: Sample Time <= 0"));
+	}
+	else if (m_cInputPathName == _T(""))
+	{
+		MessageBox(_T("Please select command file!"));
 	}
 	else {
 		// Read command
 		ReadCommand(m_cInputPathName, m_arrCmdArray);
 
 		FILE* OutFile;
-		OutFile = fopen("D:\\tmpResult.txt", "w");
+		OutFile = fopen("D:\\tmpResult.csv", "w");
+
+		m_cPlotPathName = m_cOutputPathName;
+		GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
 
 		double dTimeStart = 0; // 起始時間
 		double dBeginPoint[2]; // 起點位置
@@ -1975,7 +2000,7 @@ void CpathspeedDlg::OnBnClickedButton2()
 		m_arrPathPointArray.RemoveAll();
 		m_arrPathVAMaxArray.RemoveAll();
 		fclose(OutFile);
-		OutFile = fopen("D:\\tmpResult.txt", "r");
+		OutFile = fopen("D:\\tmpResult.csv", "r");
 
 		FILE* ResultFile;
 		ResultFile = fopen(CT2A(m_cOutputPathName), "w");
@@ -2009,7 +2034,8 @@ void CpathspeedDlg::OnBnClickedButtonPlot()
 
 void CpathspeedDlg::OnBnClickedButtonSelectOutfile()
 {
-	SelectFile(m_cPlotPathName);
+	SelectOutputFile(m_cOutputPathName);
+	GetDlgItem(IDC_STATIC_SELT_RES)->SetWindowTextW(m_cOutputPathName);
 }
 
 
@@ -2042,4 +2068,11 @@ void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
 	// TODO: 在此加入您的訊息處理常式程式碼和 (或) 呼叫預設值
 
 	CDialogEx::OnTimer(nIDEvent);
+}
+
+
+void CpathspeedDlg::OnBnClickedButtonSelectPlot()
+{
+	SelectOutputFile(m_cPlotPathName);
+	GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
 }
