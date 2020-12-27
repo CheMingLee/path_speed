@@ -83,7 +83,6 @@ BEGIN_MESSAGE_MAP(CpathspeedDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON1, &CpathspeedDlg::OnBnClickedButtonSelectCommand)
 	ON_BN_CLICKED(IDC_BUTTON2, &CpathspeedDlg::OnBnClickedButtonCaculate)
 	ON_BN_CLICKED(IDC_BUTTON_PLOT, &CpathspeedDlg::OnBnClickedButtonPlot)
-	ON_BN_CLICKED(IDC_BUTTON_SELECT_OUTFILE, &CpathspeedDlg::OnBnClickedButtonSelectOutfile)
 	ON_BN_CLICKED(IDC_BUTTON_ZOOM, &CpathspeedDlg::OnBnClickedButtonZoom)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_BUTTON_SELECT_PLOT, &CpathspeedDlg::OnBnClickedButtonSelectPlot)
@@ -129,8 +128,7 @@ BOOL CpathspeedDlg::OnInitDialog()
 	m_cbPlotType.SetCurSel(PLOTXY);
 	m_cInputPathName = _T("");
 	m_cOutputPathName = _T("D:\\result.csv");
-	m_cPlotPathName = m_cOutputPathName;
-	GetDlgItem(IDC_STATIC_SELT_RES)->SetWindowTextW(m_cOutputPathName);
+	m_cPlotPathName = _T("");
 	GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
 
 	return TRUE;  // 傳回 TRUE，除非您對控制項設定焦點
@@ -805,9 +803,6 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 
 		FILE* OutFile;
 		OutFile = fopen("D:\\tmpResult.csv", "w");
-
-		m_cPlotPathName = m_cOutputPathName;
-		GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
 
 		double dTimeStart = 0; // 起始時間
 		double dBeginPoint[2]; // 起點位置
@@ -2087,30 +2082,35 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 
 void CpathspeedDlg::OnBnClickedButtonPlot()
 {
-	UpdateData(TRUE);
-	m_bPlotFlag = TRUE;
-	m_bZoomFlag = FALSE;
-	InvalidateRect(m_rectPlotSpace, TRUE);
-	UpdateWindow();
-
-
-}
-
-
-void CpathspeedDlg::OnBnClickedButtonSelectOutfile()
-{
-	SelectOutputFile(m_cOutputPathName);
-	GetDlgItem(IDC_STATIC_SELT_RES)->SetWindowTextW(m_cOutputPathName);
+	if (m_cPlotPathName == _T(""))
+	{
+		MessageBox(_T("Please select plot file!"));
+	}
+	else
+	{
+		UpdateData(TRUE);
+		m_bPlotFlag = TRUE;
+		m_bZoomFlag = FALSE;
+		InvalidateRect(m_rectPlotSpace, TRUE);
+		UpdateWindow();
+	}
 }
 
 
 void CpathspeedDlg::OnBnClickedButtonZoom()
 {
-	UpdateData(TRUE);
-	m_bPlotFlag = TRUE;
-	m_bZoomFlag = TRUE;
-	InvalidateRect(m_rectPlotSpace, TRUE);
-	UpdateWindow();
+	if (m_cPlotPathName == _T(""))
+	{
+		MessageBox(_T("Please select plot file!"));
+	}
+	else
+	{
+		UpdateData(TRUE);
+		m_bPlotFlag = TRUE;
+		m_bZoomFlag = TRUE;
+		InvalidateRect(m_rectPlotSpace, TRUE);
+		UpdateWindow();
+	}
 }
 
 
