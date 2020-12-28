@@ -437,7 +437,23 @@ void CpathspeedDlg::OnPaint()
 					dLastResultDataY = dResultData[iYlabel];
 					dLastV = dCurrentV;
 				}
-				if (m_bZoomFlag)
+				double dEdgeXmax = m_dPlotXmax * dXscale + dXscaleConst;
+				double dEdgeXmin = m_dPlotXmin * dXscale + dXscaleConst;
+				double dEdgeYmax = m_dPlotYmax * dYscale + dYscaleConst;
+				double dEdgeYmin = m_dPlotYmin * dYscale + dYscaleConst;
+				if (PlotEndPoint.x > dEdgeXmax || PlotEndPoint.x < dEdgeXmin || PlotEndPoint.y < dEdgeYmax || PlotEndPoint.y > dEdgeYmin)
+				{
+					dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
+				}
+				else if (PlotBeginPoint.x > dEdgeXmax || PlotBeginPoint.x < dEdgeXmin || PlotBeginPoint.y < dEdgeYmax || PlotBeginPoint.y > dEdgeYmin)
+				{
+					dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
+				}
+				else
+				{
+					dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
+				}
+				/*if (m_bZoomFlag)
 				{
 					double dEdgeXmax = m_dPlotXmax * dXscale + dXscaleConst;
 					double dEdgeXmin = m_dPlotXmin * dXscale + dXscaleConst;
@@ -459,7 +475,7 @@ void CpathspeedDlg::OnPaint()
 				else
 				{
 					dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
-				}
+				}*/
 				PlotBeginPoint.x = PlotEndPoint.x;
 				PlotBeginPoint.y = PlotEndPoint.y;
 			}
@@ -1006,10 +1022,65 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					}
 					else
 					{
+						if (iNextCmd == ARCXY || iNextCmd == FARCXY)
+						{
+							POINTXY ArcEndPoint;
+							POINTXY ArcCenterPoint;
+							POINTXY ArcPoint;
+
+							double dDirection;
+							double dRadius;
+							double dCosThetaStart;
+							double dSinThetaStart;
+							double dCosThetaEnd;
+							double dSinThetaEnd;
+							double dThetaStart;
+							double dThetaEnd;
+							double dThetaPath;
+							double dTheta = 1.0 * PI / 180.0;
+
+							ArcEndPoint.x = NextCmd.m_dParams[0];
+							ArcEndPoint.y = NextCmd.m_dParams[1];
+							ArcCenterPoint.x = NextCmd.m_dParams[2];
+							ArcCenterPoint.y = NextCmd.m_dParams[3];
+							dDirection = NextCmd.m_dParams[4];
+							dRadius = sqrt(pow(ArcEndPoint.x - ArcCenterPoint.x, 2) + pow(ArcEndPoint.y - ArcCenterPoint.y, 2));
+							if (dRadius == 0.0)
+							{
+								break;
+							}
+							else
+							{
+								dCosThetaStart = (BeginPoint.x - ArcCenterPoint.x) / dRadius;
+								dSinThetaStart = (BeginPoint.y - ArcCenterPoint.y) / dRadius;
+								dThetaStart = acos((BeginPoint.x - ArcCenterPoint.x) / dRadius); // 範圍[0, PI]
+								dThetaStart = CheckTheta(dCosThetaStart, dSinThetaStart, dThetaStart); // 轉為[0, 2*PI]
+								dCosThetaEnd = (ArcEndPoint.x - ArcCenterPoint.x) / dRadius;
+								dSinThetaEnd = (ArcEndPoint.y - ArcCenterPoint.y) / dRadius;
+								dThetaEnd = acos((ArcEndPoint.x - ArcCenterPoint.x) / dRadius); // 範圍[0, PI]
+								dThetaEnd = CheckTheta(dCosThetaEnd, dSinThetaEnd, dThetaEnd); // 轉為[0, 2*PI]
+								if (dDirection >= 0.0) // 逆時針
+								{
+									ArcPoint.x = ArcCenterPoint.x + dRadius * cos(dThetaStart + dTheta);
+									ArcPoint.y = ArcCenterPoint.y + dRadius * sin(dThetaStart + dTheta);
+								}
+								else // 順時針
+								{
+									ArcPoint.x = ArcCenterPoint.x + dRadius * cos(dThetaStart - dTheta);
+									ArcPoint.y = ArcCenterPoint.y + dRadius * sin(dThetaStart - dTheta);
+								}
+							}
+							
+							NextPoint.x = ArcPoint.x;
+							NextPoint.y = ArcPoint.y;
+						}
+
 						dCosTheta = ((CurrentPoint.x - BeginPoint.x) * (NextPoint.x - CurrentPoint.x) + (CurrentPoint.y - BeginPoint.y) * (NextPoint.y - CurrentPoint.y)) / (dCurrentDistance * dNextDistance);
 
 						if (dCosTheta > cos(m_dThetaMax * PI / 180.0))
 						{
+							NextPoint.x = NextCmd.m_dParams[0];
+							NextPoint.y = NextCmd.m_dParams[1];
 							BeginPoint.x = CurrentPoint.x;
 							BeginPoint.y = CurrentPoint.y;
 							CurrentPoint.x = NextPoint.x;
@@ -2092,7 +2163,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		fclose(OutFile);
 		OutFile = fopen("D:\\tmpResult.csv", "r");
 
-		if (MessageBox(_T("目前結果將會儲存在: ")+ m_cOutputPathName+_T("\n若需改變存檔位置請按取消"), _T("計算完成"), MB_OKCANCEL) == IDCANCEL)
+		if (MessageBox(_T("目前結果將會儲存在: ")+ m_cOutputPathName+_T("\n若需改變存檔位置請按否"), _T("計算完成"), MB_YESNO) == IDNO)
 		{
 			TCHAR szFilters[] = _T("CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||");
 			CFileDialog fileDlg(FALSE, _T("csv"), _T("*.csv"), OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters);
