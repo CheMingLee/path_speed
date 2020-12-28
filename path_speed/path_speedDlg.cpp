@@ -191,6 +191,7 @@ void CpathspeedDlg::OnPaint()
 		double dTmin = 0;
 		double dVmin = 0;
 		double dPlotMaxMin[4]; // Xmin, Xmax, Ymin, Ymax
+		double dPlotGridX, dPlotGridY;
 		bool bPlotVflag = FALSE;
 		bool bPlotAflag = FALSE;
 
@@ -347,6 +348,8 @@ void CpathspeedDlg::OnPaint()
 
 		dXscale = rectChartSpace.Width() / (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]);
 		dYscale = -rectChartSpace.Height() / (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]);
+		dPlotGridX = (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]) / 5;
+		dPlotGridY = (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]) / 5;
 		if (dPlotMaxMin[XMIN] == dPlotMaxMin[XMAX] && dPlotMaxMin[YMIN] == dPlotMaxMin[YMAX])
 		{
 			dXscale = 0;
@@ -388,10 +391,31 @@ void CpathspeedDlg::OnPaint()
 			dYscaleConst = PlotOrgPoint.y - dPlotMaxMin[YMIN] * dYscale;
 			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
 			dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
+
+			for (int i = 0; i < 4; i++)
+			{
+				strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN] + dPlotGridX);
+				dcMem.TextOutW(PlotOrgPoint.x + dPlotGridX * dXscale, rectChartSpace.bottom + 2, strPlotStr);
+				dcMem.MoveTo(PlotOrgPoint.x + dPlotGridX * dXscale, rectChartSpace.bottom);
+				dcMem.LineTo(PlotOrgPoint.x + dPlotGridX * dXscale, rectChartSpace.top);
+				dPlotGridX += (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]) / 5;
+			}
+
 			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMAX]);
 			dcMem.TextOutW(PlotOrgPoint.x + rectChartSpace.Width(), rectChartSpace.bottom + 2, strPlotStr); // X axis Max
+
 			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
 			dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y, strPlotStr); // Y axis Min
+
+			for (int i = 0; i < 4; i++)
+			{
+				strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN] + dPlotGridY);
+				dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y + dPlotGridY * dYscale, strPlotStr);
+				dcMem.MoveTo(rectChartSpace.left, PlotOrgPoint.y + dPlotGridY * dYscale);
+				dcMem.LineTo(rectChartSpace.right, PlotOrgPoint.y + dPlotGridY * dYscale);
+				dPlotGridY += (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]) / 5;
+			}
+
 			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMAX]);
 			dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y - rectChartSpace.Height(), strPlotStr); // Y axis Max
 		}
@@ -399,7 +423,7 @@ void CpathspeedDlg::OnPaint()
 		dcMem.TextOutW(rectChartSpace.left - 15, rectChartSpace.top - PLOTYLABELGAP, strPlotYlabel);
 
 		CPen* pOldPen;
-		CPen penLine(PS_SOLID, 1.5, RGB(99, 184, 255));
+		CPen penLine(PS_SOLID, 1.8, RGB(99, 184, 255));
 		pOldPen = dcMem.SelectObject(&penLine);
 
 		double dLastResultDataX = 0;
