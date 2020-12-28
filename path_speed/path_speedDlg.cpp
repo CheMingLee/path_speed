@@ -855,6 +855,8 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		double dMaxOutA = 0;
 		double dMinOutA = 0;
 
+		double dt = m_dSampleTime * pow(10, -3);
+
 		// Command classification
 		for (int i = 0; i < m_arrCmdArray.GetSize(); i++) {
 			
@@ -1058,7 +1060,6 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 				double dXRatio; // 換算X
 				double dYRatio; // 換算Y
 				double dDistanceSum;
-				double dt = m_dSampleTime * pow(10, -3);
 
 				// 規則判斷參數
 				double Vm; // 加速段與減速段交會處之速度
@@ -1115,6 +1116,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										break;
 									}
 									OutVT.t += dt;
+									dt = m_dSampleTime * pow(10, -3);
 									OutVxVy.x = OutVT.v * dXRatio;
 									OutVxVy.y = OutVT.v * dYRatio;
 									OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1154,6 +1156,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 											OutVT.v += dAmax * dt;
 											OutVT.t += dt;
+											dt = m_dSampleTime * pow(10, -3);
 											if (dDistanceSum > S1)
 											{
 												dDistanceSum = dDistanceSum - (OutVT.t - dTimeStart - T1) * (OutVT.v - Vm);
@@ -1185,6 +1188,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												break;
 											}
 											OutVT.t += dt;
+											dt = m_dSampleTime * pow(10, -3);
 											OutVxVy.x = OutVT.v * dXRatio;
 											OutVxVy.y = OutVT.v * dYRatio;
 											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1215,6 +1219,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												break;
 											}
 											OutVT.t += dt;
+											dt = m_dSampleTime * pow(10, -3);
 											OutVxVy.x = OutVT.v * dXRatio;
 											OutVxVy.y = OutVT.v * dYRatio;
 											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1250,6 +1255,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 											OutVT.v += dAmax * dt;
 											OutVT.t += dt;
+											dt = m_dSampleTime * pow(10, -3);
 											if (dDistanceSum > S1)
 											{
 												dDistanceSum = dDistanceSum - (OutVT.t - dTimeStart - T1) * (OutVT.v - Vm);
@@ -1281,6 +1287,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												break;
 											}
 											OutVT.t += dt;
+											dt = m_dSampleTime * pow(10, -3);
 											OutVxVy.x = OutVT.v * dXRatio;
 											OutVxVy.y = OutVT.v * dYRatio;
 											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1308,6 +1315,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 											OutVT.v += dAmax * dt;
 											OutVT.t += dt;
+											dt = m_dSampleTime * pow(10, -3);
 											if (dDistanceSum > S1)
 											{
 												dDistanceSum = dDistanceSum - (OutVT.t - dTimeStart - T1) * (OutVT.v - Vm);
@@ -1339,6 +1347,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												break;
 											}
 											OutVT.t += dt;
+											dt = m_dSampleTime * pow(10, -3);
 											OutVxVy.x = OutVT.v * dXRatio;
 											OutVxVy.y = OutVT.v * dYRatio;
 											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1378,6 +1387,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 										OutVT.v += dAmax * dt;
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										if (dDistanceSum > S1)
 										{
 											dDistanceSum = dDistanceSum - (OutVT.t - dTimeStart - T1) * (OutVT.v - Vm);
@@ -1409,6 +1419,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											break;
 										}
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										OutVxVy.x = OutVT.v * dXRatio;
 										OutVxVy.y = OutVT.v * dYRatio;
 										OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1439,6 +1450,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											break;
 										}
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										OutVxVy.x = OutVT.v * dXRatio;
 										OutVxVy.y = OutVT.v * dYRatio;
 										OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1477,6 +1489,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 										OutVT.v += dAmax * dt;
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										if (dDistanceSum > S1)
 										{
 											dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - dTimeStart - T1) * (OutVT.v - dVmax);
@@ -1504,6 +1517,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										dDistanceSum += dVmax * dt;
 										OutVT.v = dVmax;
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										if ((S - dDistanceSum) < S3)
 										{
 											OutVT.v = dVmax - dAmax * (OutVT.t - dTimeStart - T1 - T2);
@@ -1535,6 +1549,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											break;
 										}
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										OutVxVy.x = OutVT.v * dXRatio;
 										OutVxVy.y = OutVT.v * dYRatio;
 										OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1563,6 +1578,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 										OutVT.v += dAmax * dt;
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										if (dDistanceSum > S1)
 										{
 											dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - dTimeStart - T1) * (OutVT.v - dVmax);
@@ -1594,6 +1610,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											break;
 										}
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										OutVxVy.x = OutVT.v * dXRatio;
 										OutVxVy.y = OutVT.v * dYRatio;
 										OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1632,6 +1649,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 										OutVT.v += dAmax * dt;
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										if (dDistanceSum > S1)
 										{
 											dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - dTimeStart - T1) * (OutVT.v - dVmax);
@@ -1659,6 +1677,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										dDistanceSum += dVmax * dt;
 										OutVT.v = dVmax;
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										if ((S - dDistanceSum) < S3)
 										{
 											OutVT.v = dVmax - dAmax * (OutVT.t - dTimeStart - T1 - T2);
@@ -1690,6 +1709,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											break;
 										}
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										OutVxVy.x = OutVT.v * dXRatio;
 										OutVxVy.y = OutVT.v * dYRatio;
 										OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1719,6 +1739,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 										OutVT.v += dAmax * dt;
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										if (dDistanceSum > S1)
 										{
 											dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - dTimeStart - T1) * (OutVT.v - dVmax);
@@ -1746,6 +1767,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										dDistanceSum += dVmax * dt;
 										OutVT.v = dVmax;
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										if ((S - dDistanceSum) < S3)
 										{
 											OutVT.v = dVmax - dAmax * (OutVT.t - dTimeStart - T1 - T2);
@@ -1777,6 +1799,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											break;
 										}
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										OutVxVy.x = OutVT.v * dXRatio;
 										OutVxVy.y = OutVT.v * dYRatio;
 										OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1820,6 +1843,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										break;
 									}
 									OutVT.t += dt;
+									dt = m_dSampleTime * pow(10, -3);
 									OutVxVy.x = OutVT.v * dXRatio;
 									OutVxVy.y = OutVT.v * dYRatio;
 									OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1859,6 +1883,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 										OutVT.v += dAmax * dt;
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										if (dDistanceSum > S1)
 										{
 											dDistanceSum = dDistanceSum - (OutVT.t - dTimeStart - T1) * (OutVT.v - Vm);
@@ -1890,6 +1915,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											break;
 										}
 										OutVT.t += dt;
+										dt = m_dSampleTime * pow(10, -3);
 										OutVxVy.x = OutVT.v * dXRatio;
 										OutVxVy.y = OutVT.v * dYRatio;
 										OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -1921,6 +1947,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 								dDistanceSum += OutVT.v * dt + 0.5 * dAmax * pow(dt, 2);
 								OutVT.v += dAmax * dt;
 								OutVT.t += dt;
+								dt = m_dSampleTime * pow(10, -3);
 								if (dDistanceSum > S1)
 								{
 									dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - dTimeStart - T1) * (OutVT.v - dVmax);
@@ -1948,6 +1975,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 								dDistanceSum += dVmax * dt;
 								OutVT.v = dVmax;
 								OutVT.t += dt;
+								dt = m_dSampleTime * pow(10, -3);
 								if ((S - dDistanceSum) < S3)
 								{
 									OutVT.v = dVmax - dAmax * (OutVT.t - dTimeStart - T1 - T2);
@@ -1979,6 +2007,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 									break;
 								}
 								OutVT.t += dt;
+								dt = m_dSampleTime * pow(10, -3);
 								OutVxVy.x = OutVT.v * dXRatio;
 								OutVxVy.y = OutVT.v * dYRatio;
 								OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
@@ -2000,24 +2029,34 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					}
 
 					// 輸出此線段最後一點的參數
-					OutVT.v = dVEnd; // 終止速度
-					OutVT.t = dTimeStart + dTimeTotal; // 終止時間
-					OutVxVy.x = OutVT.v * dXRatio;
-					OutVxVy.y = OutVT.v * dYRatio;
-					OutPoint.x = m_arrPathPointArray.GetAt(i + 1).x;
-					OutPoint.y = m_arrPathPointArray.GetAt(i + 1).y;
-					m_arrOutVTArray.Add(OutVT);
-					m_arrOutVxVyArray.Add(OutVxVy);
-					m_arrOutXYArray.Add(OutPoint);
-					dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-					dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-					dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-					dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-					dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-					dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-					dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-					dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-					dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+					if (OutVT.t + dt == dTimeStart + dTimeTotal)
+					{
+						OutVT.v = dVEnd; // 終止速度
+						OutVT.t = dTimeStart + dTimeTotal; // 終止時間
+						OutVxVy.x = OutVT.v * dXRatio;
+						OutVxVy.y = OutVT.v * dYRatio;
+						OutPoint.x = m_arrPathPointArray.GetAt(i + 1).x;
+						OutPoint.y = m_arrPathPointArray.GetAt(i + 1).y;
+						m_arrOutVTArray.Add(OutVT);
+						m_arrOutVxVyArray.Add(OutVxVy);
+						m_arrOutXYArray.Add(OutPoint);
+						dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
+						dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
+						dMinOutX = CheckMin(dMinOutX, OutPoint.x);
+						dMinOutY = CheckMin(dMinOutY, OutPoint.y);
+						dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
+						dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
+						dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
+						dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
+						dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+					}
+					else
+					{
+						dt = OutVT.t + dt - (dTimeStart + dTimeTotal);
+						OutVT.v = dVEnd; // 終止速度
+						OutVT.t = dTimeStart + dTimeTotal; // 終止時間
+					}
+					
 
 					dTimeStart += dTimeTotal;
 					dVStart = dVEnd;
@@ -2053,7 +2092,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		fclose(OutFile);
 		OutFile = fopen("D:\\tmpResult.csv", "r");
 
-		if (MessageBox(_T("目前結果將會儲存在: ")+ m_cOutputPathName+_T("\n是否改變存檔位置?"), _T("計算完成"), MB_OKCANCEL) == IDOK)
+		if (MessageBox(_T("目前結果將會儲存在: ")+ m_cOutputPathName+_T("\n若需改變存檔位置請按取消"), _T("計算完成"), MB_OKCANCEL) == IDCANCEL)
 		{
 			TCHAR szFilters[] = _T("CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||");
 			CFileDialog fileDlg(FALSE, _T("csv"), _T("*.csv"), OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters);
