@@ -129,7 +129,6 @@ BOOL CpathspeedDlg::OnInitDialog()
 	m_cInputPathName = _T("");
 	m_cOutputPathName = _T("D:\\result.csv");
 	m_cPlotPathName = _T("");
-	GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
 
 	return TRUE;  // 傳回 TRUE，除非您對控制項設定焦點
 }
@@ -2054,7 +2053,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		fclose(OutFile);
 		OutFile = fopen("D:\\tmpResult.csv", "r");
 
-		if (MessageBox(_T("目前結果儲存在: ")+ m_cOutputPathName+_T("\n是否另存新檔?"), _T("計算完成"), MB_OKCANCEL) == IDOK)
+		if (MessageBox(_T("目前結果將會儲存在: ")+ m_cOutputPathName+_T("\n是否改變存檔位置?"), _T("計算完成"), MB_OKCANCEL) == IDOK)
 		{
 			TCHAR szFilters[] = _T("CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||");
 			CFileDialog fileDlg(FALSE, _T("csv"), _T("*.csv"), OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters);
