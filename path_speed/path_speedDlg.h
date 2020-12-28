@@ -98,6 +98,7 @@ public:
 	afx_msg void OnBnClickedButtonSelectCommand();
 	afx_msg void OnBnClickedButtonCaculate();
 	afx_msg void OnBnClickedButtonPlot();
+	afx_msg void OnBnClickedButtonSelectOutfile();
 	afx_msg void OnBnClickedButtonZoom();
 	CString m_cInputPathName;
 	CString m_cOutputPathName;
