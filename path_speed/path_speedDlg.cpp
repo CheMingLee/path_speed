@@ -86,6 +86,7 @@ BEGIN_MESSAGE_MAP(CpathspeedDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_ZOOM, &CpathspeedDlg::OnBnClickedButtonZoom)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_BUTTON_SELECT_PLOT, &CpathspeedDlg::OnBnClickedButtonSelectPlot)
+	ON_BN_CLICKED(IDC_BUTTON_SIMULATION, &CpathspeedDlg::OnBnClickedButtonSimulation)
 END_MESSAGE_MAP()
 
 
@@ -123,6 +124,7 @@ BOOL CpathspeedDlg::OnInitDialog()
 	// TODO: 在此加入額外的初始設定
 	m_bPlotFlag = FALSE;
 	m_bZoomFlag = FALSE;
+	m_bSimulationFlag = FALSE;
 	GetDlgItem(IDC_CHART)->GetWindowRect(&m_rectPlotSpace);
 	ScreenToClient(&m_rectPlotSpace);
 	m_cbPlotType.SetCurSel(PLOTXY);
@@ -452,30 +454,12 @@ void CpathspeedDlg::OnPaint()
 				else
 				{
 					dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
-				}
-				/*if (m_bZoomFlag)
-				{
-					double dEdgeXmax = m_dPlotXmax * dXscale + dXscaleConst;
-					double dEdgeXmin = m_dPlotXmin * dXscale + dXscaleConst;
-					double dEdgeYmax = m_dPlotYmax * dYscale + dYscaleConst;
-					double dEdgeYmin = m_dPlotYmin * dYscale + dYscaleConst;
-					if (PlotEndPoint.x > dEdgeXmax || PlotEndPoint.x < dEdgeXmin || PlotEndPoint.y < dEdgeYmax || PlotEndPoint.y > dEdgeYmin)
+					if (m_bSimulationFlag)
 					{
-						dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
-					}
-					else if (PlotBeginPoint.x > dEdgeXmax || PlotBeginPoint.x < dEdgeXmin || PlotBeginPoint.y < dEdgeYmax || PlotBeginPoint.y > dEdgeYmin)
-					{
-						dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
-					}
-					else
-					{
-						dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
+						SetTimer(0, m_dSampleTime, NULL);
+						ChartDC.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
 					}
 				}
-				else
-				{
-					dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
-				}*/
 				PlotBeginPoint.x = PlotEndPoint.x;
 				PlotBeginPoint.y = PlotEndPoint.y;
 			}
@@ -486,6 +470,7 @@ void CpathspeedDlg::OnPaint()
 		ChartDC.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
 		bmp.DeleteObject();
 		dcMem.DeleteDC();
+		KillTimer(0);
 	}
 	else
 	{
@@ -610,7 +595,6 @@ void CpathspeedDlg::ReadCommand(CString pathName, CArray<CMD, CMD&>& CmdArray)
 			else
 			{
 				MessageBox(_T("Cmd Error"));
-				OnBnClickedCancel();
 			}
 			strFileStr = strFileStr.TrimLeft(strFileCmd).TrimLeft(_T(" ,\n"));
 			iflag = 0;
@@ -747,6 +731,7 @@ void CpathspeedDlg::CalArcPoint(POINTXY BeginP, CMD Cmd, CArray<POINTXY, POINTXY
 					}
 
 				}
+
 				while (dTheta < dThetaPath)
 				{
 					ArcPoint.x = ArcCenterPoint.x + dRadius * cos(dThetaStart + dTheta);
@@ -805,14 +790,16 @@ void CpathspeedDlg::OnBnClickedButtonSelectCommand()
 void CpathspeedDlg::OnBnClickedButtonCaculate()
 {
 	UpdateData(TRUE);
-	if(m_dSampleTime <= 0) {
+	if(m_dSampleTime <= 0) 
+	{
 		MessageBox(_T("Error: Sample Time <= 0"));
 	}
 	else if (m_cInputPathName == _T(""))
 	{
 		MessageBox(_T("Please select command file!"));
 	}
-	else {
+	else 
+	{
 		// Read command
 		ReadCommand(m_cInputPathName, m_arrCmdArray);
 
@@ -1013,6 +1000,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 								BeginPoint.y = CurrentPoint.y;
 								CurrentPoint.x = NextPoint.x;
 								CurrentPoint.y = NextPoint.y;
+
 								CalArcPoint(BeginPoint, NextCmd, m_arrPathPointArray, dSpeed, dAcc, m_arrPathVAMaxArray);
 								m_arrPathPointArray.Add(NextPoint);
 								SelectPathVAmax(iNextCmd, dSpeed, dAcc, m_arrPathVAMaxArray);
@@ -2200,6 +2188,7 @@ void CpathspeedDlg::OnBnClickedButtonPlot()
 		UpdateData(TRUE);
 		m_bPlotFlag = TRUE;
 		m_bZoomFlag = FALSE;
+		m_bSimulationFlag = FALSE;
 		InvalidateRect(m_rectPlotSpace, TRUE);
 		UpdateWindow();
 	}
@@ -2217,6 +2206,7 @@ void CpathspeedDlg::OnBnClickedButtonZoom()
 		UpdateData(TRUE);
 		m_bPlotFlag = TRUE;
 		m_bZoomFlag = TRUE;
+		m_bSimulationFlag = FALSE;
 		InvalidateRect(m_rectPlotSpace, TRUE);
 		UpdateWindow();
 	}
@@ -2239,7 +2229,13 @@ BOOL CpathspeedDlg::PreTranslateMessage(MSG* pMsg)
 
 void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
 {
-	// TODO: 在此加入您的訊息處理常式程式碼和 (或) 呼叫預設值
+	if (nIDEvent == 0)
+	{
+		/*CTime t1;
+		t1 = CTime::GetCurrentTime();
+		m_cPlotPathName = t1.Format("'%Y-%m-%d %H:%M:%S'");
+		GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);*/
+	}
 
 	CDialogEx::OnTimer(nIDEvent);
 }
@@ -2249,4 +2245,21 @@ void CpathspeedDlg::OnBnClickedButtonSelectPlot()
 {
 	SelectOutputFile(m_cPlotPathName);
 	GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
+}
+
+
+void CpathspeedDlg::OnBnClickedButtonSimulation()
+{
+	if (m_cPlotPathName == _T(""))
+	{
+		MessageBox(_T("Please select plot file!"));
+	}
+	else
+	{
+		m_bPlotFlag = TRUE;
+		m_bZoomFlag = FALSE;
+		m_bSimulationFlag = TRUE;
+		InvalidateRect(m_rectPlotSpace, TRUE);
+		UpdateWindow();
+	}
 }

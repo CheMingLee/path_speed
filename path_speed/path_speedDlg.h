@@ -77,10 +77,8 @@ protected:
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
 public:
-	double m_dSampleTime;
-	double m_dThetaMax;
-	bool m_bPlotFlag;
-	bool m_bZoomFlag;
+	double m_dSampleTime, m_dThetaMax;
+	bool m_bPlotFlag, m_bZoomFlag, m_bSimulationFlag;
 	double m_dPlotXmin;
 	double m_dPlotXmax;
 	double m_dPlotYmin;
@@ -113,4 +111,5 @@ public:
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnBnClickedButtonSelectPlot();
+	afx_msg void OnBnClickedButtonSimulation();
 };
