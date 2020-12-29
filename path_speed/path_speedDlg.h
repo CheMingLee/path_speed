@@ -110,5 +110,5 @@ public:
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg void OnCbnSelchangeComboPlotType();
 	FILE* fpResult;
-	clock_t m_tSimuStart, m_tSimuEnd;
+	clock_t m_tSimuStart, m_tSimuEnd, m_tSimuStartCheck, m_tSimuEndCheck;
 };

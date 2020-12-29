@@ -2285,8 +2285,12 @@ void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
 			else
 			{
 				dc.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &m_dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
+				m_tSimuEndCheck = clock();
+				m_cInputPathName.Format(_T("%lf"), (m_tSimuEndCheck - m_tSimuStartCheck) / (double)CLOCKS_PER_SEC);
+				GetDlgItem(IDC_STATIC_SELT_CMD)->SetWindowTextW(m_cInputPathName);
 				m_cPlotPathName.Format(_T("%lf"), dResultData[0]);
 				GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
+				
 				KillTimer(0);
 				fclose(fpResult);
 				m_dcMem.DeleteDC();
@@ -2295,8 +2299,11 @@ void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
 		}
 		dc.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &m_dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
 		m_tSimuStart = clock();
+		m_tSimuEndCheck = clock();
 		m_cPlotPathName.Format(_T("%lf"), dResultData[0]);
+		m_cInputPathName.Format(_T("%lf"), (m_tSimuEndCheck - m_tSimuStartCheck) / (double) CLOCKS_PER_SEC);
 		GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
+		GetDlgItem(IDC_STATIC_SELT_CMD)->SetWindowTextW(m_cInputPathName);
 	}
 
 	CDialogEx::OnTimer(nIDEvent);
@@ -2417,7 +2424,8 @@ void CpathspeedDlg::OnBnClickedButtonSimulation()
 			m_dcMem.MoveTo(PlotBeginPoint.x, PlotBeginPoint.y);
 		}
 		m_tSimuStart = clock();
-		SetTimer(0, 30, NULL);
+		m_tSimuStartCheck = clock();
+		SetTimer(0, 40, NULL);
 	}
 }
 
