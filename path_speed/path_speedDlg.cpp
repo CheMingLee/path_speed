@@ -52,12 +52,12 @@ END_MESSAGE_MAP()
 CpathspeedDlg::CpathspeedDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_PATH_SPEED_DIALOG, pParent)
 	
-	, m_dSampleTime(1)
-	, m_dThetaMax(10)
-	, m_dPlotXmin(0)
-	, m_dPlotXmax(0)
-	, m_dPlotYmin(0)
-	, m_dPlotYmax(0)
+	, m_dSampleTime(1.0)
+	, m_dThetaMax(10.0)
+	, m_dPlotXmin(0.0)
+	, m_dPlotXmax(0.0)
+	, m_dPlotYmin(0.0)
+	, m_dPlotYmax(0.0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -87,6 +87,7 @@ BEGIN_MESSAGE_MAP(CpathspeedDlg, CDialogEx)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_BUTTON_SELECT_PLOT, &CpathspeedDlg::OnBnClickedButtonSelectPlot)
 	ON_BN_CLICKED(IDC_BUTTON_SIMULATION, &CpathspeedDlg::OnBnClickedButtonSimulation)
+	ON_CBN_SELCHANGE(IDC_COMBO_PLOT_TYPE, &CpathspeedDlg::OnCbnSelchangeComboPlotType)
 END_MESSAGE_MAP()
 
 
@@ -127,6 +128,10 @@ BOOL CpathspeedDlg::OnInitDialog()
 	m_bSimulationFlag = FALSE;
 	GetDlgItem(IDC_CHART)->GetWindowRect(&m_rectPlotSpace);
 	ScreenToClient(&m_rectPlotSpace);
+	m_rectChartSpace.left = m_rectPlotSpace.left + PLOTGAP;
+	m_rectChartSpace.top = m_rectPlotSpace.top + PLOTGAP;
+	m_rectChartSpace.bottom = m_rectPlotSpace.bottom - PLOTGAP;
+	m_rectChartSpace.right = m_rectChartSpace.bottom - m_rectChartSpace.top + m_rectChartSpace.left;
 	m_cbPlotType.SetCurSel(PLOTXY);
 	m_cInputPathName = _T("");
 	m_cOutputPathName = _T("D:\\result.csv");
@@ -153,352 +158,11 @@ void CpathspeedDlg::OnSysCommand(UINT nID, LPARAM lParam)
 // 框架會自動完成此作業。
 
 void CpathspeedDlg::OnPaint()
-{
+{	
 	if (m_bPlotFlag)
 	{
-		CPaintDC ChartDC(this);
-		CRect rectChartSpace;
-		rectChartSpace.left = m_rectPlotSpace.left + PLOTGAP;
-		rectChartSpace.top = m_rectPlotSpace.top + PLOTGAP;
-		rectChartSpace.bottom = m_rectPlotSpace.bottom - PLOTGAP;
-		rectChartSpace.right = rectChartSpace.bottom - rectChartSpace.top + rectChartSpace.left;
-		
-		// 雙緩衝
-		CDC dcMem;
-		CBitmap bmp;
-		dcMem.CreateCompatibleDC(&ChartDC);
-		bmp.CreateCompatibleBitmap(&ChartDC, m_rectPlotSpace.right, m_rectPlotSpace.bottom);
-		dcMem.SelectObject(&bmp);
-		dcMem.FillSolidRect(m_rectPlotSpace, RGB(255, 255, 255));
-		dcMem.Rectangle(rectChartSpace);
-
-		// 讀檔繪圖
-		POINTXY PlotBeginPoint;
-		POINTXY PlotEndPoint;
-		int iPlotFlag = 0;
-		double dResultData[12];
-		double dXscale = 1; // dXscale * X + dXscaleConst = X_pixel
-		double dYscale = 1; // dYscale * Y + dYscaleConst = Y_pixel
-		double dXscaleConst = 0;
-		double dYscaleConst = 0;
-		int iXlabel;
-		int iYlabel;
-		POINTXY PlotOrgPoint;
-		CString strPlotStr;
-		CString strPlotXlabel;
-		CString strPlotYlabel;
-		int iPlotType = m_cbPlotType.GetCurSel();
-		double dTmin = 0;
-		double dVmin = 0;
-		double dPlotMaxMin[4]; // Xmin, Xmax, Ymin, Ymax
-		double dPlotGridX, dPlotGridY;
-		bool bPlotVflag = FALSE;
-		bool bPlotAflag = FALSE;
-
-		//抓head,取max/min參數
-		FILE* fpResult;
-		fpResult = fopen(CT2A(m_cPlotPathName), "r");
-		//maxTime, maxV, maxX, minX, maxY, minY, maxVx, minVx, maxVy, minVy, maxA, minA
-		if (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5], &dResultData[6], &dResultData[7], &dResultData[8], &dResultData[9], &dResultData[10], &dResultData[11]) != EOF)
-		{
-			iPlotFlag++;
-		}
-
-		PlotOrgPoint.x = 1.0 * rectChartSpace.left;
-		PlotOrgPoint.y = 1.0 * rectChartSpace.bottom;
-
-		switch (iPlotType)
-		{
-			case(PLOTXY):
-			{
-				bPlotVflag = FALSE;
-				bPlotAflag = FALSE;
-				iXlabel = 1;
-				iYlabel = 2;
-				dPlotMaxMin[XMIN] = dResultData[3]; // Xmin
-				dPlotMaxMin[XMAX] = dResultData[2]; // Xmax
-				dPlotMaxMin[YMIN] = dResultData[5]; // Ymin
-				dPlotMaxMin[YMAX] = dResultData[4]; // Ymax
-				strPlotXlabel = _T("X");
-				strPlotYlabel = _T("Y");
-				break;
-			}
-
-			case(PLOTXT):
-			{
-				bPlotVflag = FALSE;
-				bPlotAflag = FALSE;
-				iXlabel = 0;
-				iYlabel = 1;
-				dPlotMaxMin[XMIN] = dTmin; // Xmin
-				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
-				dPlotMaxMin[YMIN] = dResultData[3]; // Ymin
-				dPlotMaxMin[YMAX] = dResultData[2]; // Ymax
-				strPlotXlabel = _T("T (s)");
-				strPlotYlabel = _T("X");
-				break;
-			}
-
-			case(PLOTYT):
-			{
-				bPlotVflag = FALSE;
-				bPlotAflag = FALSE;
-				iXlabel = 0;
-				iYlabel = 2;
-				dPlotMaxMin[XMIN] = dTmin; // Xmin
-				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
-				dPlotMaxMin[YMIN] = dResultData[5]; // Ymin
-				dPlotMaxMin[YMAX] = dResultData[4]; // Ymax
-				strPlotXlabel = _T("T (s)");
-				strPlotYlabel = _T("Y");
-				break;
-			}
-
-			case(PLOTVXT):
-			{
-				bPlotVflag = TRUE;
-				bPlotAflag = FALSE;
-				iXlabel = 0;
-				iYlabel = 1;
-				dPlotMaxMin[XMIN] = dTmin; // Xmin
-				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
-				dPlotMaxMin[YMIN] = dResultData[7]; // Ymin
-				dPlotMaxMin[YMAX] = dResultData[6]; // Ymax
-				strPlotXlabel = _T("T (s)");
-				strPlotYlabel = _T("Vx");
-				break;
-			}
-
-			case(PLOTVYT):
-			{
-				bPlotVflag = TRUE;
-				bPlotAflag = FALSE;
-				iXlabel = 0;
-				iYlabel = 2;
-				dPlotMaxMin[XMIN] = dTmin; // Xmin
-				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
-				dPlotMaxMin[YMIN] = dResultData[9]; // Ymin
-				dPlotMaxMin[YMAX] = dResultData[8]; // Ymax
-				strPlotXlabel = _T("T (s)");
-				strPlotYlabel = _T("Vx");
-				break;
-			}
-
-			case(PLOTAXT):
-			{
-				bPlotVflag = TRUE;
-				bPlotAflag = TRUE;
-				iXlabel = 0;
-				iYlabel = 1;
-				dPlotMaxMin[XMIN] = dTmin; // Xmin
-				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
-				dPlotMaxMin[YMIN] = dResultData[11]; // Ymin
-				dPlotMaxMin[YMAX] = dResultData[10]; // Ymax
-				strPlotXlabel = _T("T (s)");
-				strPlotYlabel = _T("Ax");
-				break;
-			}
-
-			case(PLOTAYT):
-			{
-				bPlotVflag = TRUE;
-				bPlotAflag = TRUE;
-				iXlabel = 0;
-				iYlabel = 2;
-				dPlotMaxMin[XMIN] = dTmin; // Xmin
-				dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
-				dPlotMaxMin[YMIN] = dResultData[11]; // Ymin
-				dPlotMaxMin[YMAX] = dResultData[10]; // Ymax
-				strPlotXlabel = _T("T (s)");
-				strPlotYlabel = _T("Yx");
-				break;
-			}
-
-			default: // XY
-			{
-				bPlotVflag = FALSE;
-				bPlotAflag = FALSE;
-				iXlabel = 1;
-				iYlabel = 2;
-				dPlotMaxMin[XMIN] = dResultData[3]; // Xmin
-				dPlotMaxMin[XMAX] = dResultData[2]; // Xmax
-				dPlotMaxMin[YMIN] = dResultData[5]; // Ymin
-				dPlotMaxMin[YMAX] = dResultData[4]; // Ymax
-				strPlotXlabel = _T("X");
-				strPlotYlabel = _T("Y");
-				break;
-			}
-		}
-		
-		if (m_bZoomFlag)
-		{
-			dPlotMaxMin[XMIN] = m_dPlotXmin; // Xmin
-			dPlotMaxMin[XMAX] = m_dPlotXmax; // Xmax
-			dPlotMaxMin[YMIN] = m_dPlotYmin; // Ymin
-			dPlotMaxMin[YMAX] = m_dPlotYmax; // Ymax
-		}
-		else
-		{
-			m_dPlotXmin = dPlotMaxMin[XMIN];
-			m_dPlotXmax = dPlotMaxMin[XMAX];
-			m_dPlotYmin = dPlotMaxMin[YMIN];
-			m_dPlotYmax = dPlotMaxMin[YMAX];
-			UpdateData(FALSE);
-		}
-
-		dXscale = rectChartSpace.Width() / (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]);
-		dYscale = -rectChartSpace.Height() / (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]);
-		dPlotGridX = (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]) / 5;
-		dPlotGridY = (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]) / 5;
-		if (dPlotMaxMin[XMIN] == dPlotMaxMin[XMAX] && dPlotMaxMin[YMIN] == dPlotMaxMin[YMAX])
-		{
-			dXscale = 0;
-			dYscale = 0;
-			dXscaleConst = PlotOrgPoint.x + 0.5 * rectChartSpace.Width();
-			dYscaleConst = PlotOrgPoint.y - 0.5 * rectChartSpace.Height();
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
-			dcMem.TextOutW(dXscaleConst, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
-			dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, dYscaleConst, strPlotStr); // Y axis Min
-		}
-		else if (dPlotMaxMin[XMIN] == dPlotMaxMin[XMAX])
-		{
-			dXscale = 0;
-			dXscaleConst = PlotOrgPoint.x + 0.5 * rectChartSpace.Width();
-			dYscaleConst = PlotOrgPoint.y - dPlotMaxMin[YMIN] * dYscale;
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
-			dcMem.TextOutW(dXscaleConst, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
-			dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y, strPlotStr); // Y axis Min
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMAX]);
-			dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y - rectChartSpace.Height(), strPlotStr); // Y axis Max
-		}
-		else if (dPlotMaxMin[YMAX] == dPlotMaxMin[YMIN])
-		{
-			dYscale = 0;
-			dXscaleConst = PlotOrgPoint.x - dPlotMaxMin[XMIN] * dXscale;
-			dYscaleConst = PlotOrgPoint.y - 0.5 * rectChartSpace.Height();
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
-			dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMAX]);
-			dcMem.TextOutW(PlotOrgPoint.x + rectChartSpace.Width(), rectChartSpace.bottom + 2, strPlotStr); // X axis Max
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
-			dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, dYscaleConst, strPlotStr); // Y axis Min
-		}
-		else
-		{
-			dXscaleConst = PlotOrgPoint.x - dPlotMaxMin[XMIN] * dXscale;
-			dYscaleConst = PlotOrgPoint.y - dPlotMaxMin[YMIN] * dYscale;
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
-			dcMem.TextOutW(PlotOrgPoint.x, rectChartSpace.bottom + 2, strPlotStr); // X axis Min
-
-			for (int i = 0; i < 4; i++)
-			{
-				strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN] + dPlotGridX);
-				dcMem.TextOutW(PlotOrgPoint.x + dPlotGridX * dXscale, rectChartSpace.bottom + 2, strPlotStr);
-				dcMem.MoveTo(PlotOrgPoint.x + dPlotGridX * dXscale, rectChartSpace.bottom);
-				dcMem.LineTo(PlotOrgPoint.x + dPlotGridX * dXscale, rectChartSpace.top);
-				dPlotGridX += (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]) / 5;
-			}
-
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMAX]);
-			dcMem.TextOutW(PlotOrgPoint.x + rectChartSpace.Width(), rectChartSpace.bottom + 2, strPlotStr); // X axis Max
-
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
-			dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y, strPlotStr); // Y axis Min
-
-			for (int i = 0; i < 4; i++)
-			{
-				strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN] + dPlotGridY);
-				dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y + dPlotGridY * dYscale, strPlotStr);
-				dcMem.MoveTo(rectChartSpace.left, PlotOrgPoint.y + dPlotGridY * dYscale);
-				dcMem.LineTo(rectChartSpace.right, PlotOrgPoint.y + dPlotGridY * dYscale);
-				dPlotGridY += (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]) / 5;
-			}
-
-			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMAX]);
-			dcMem.TextOutW(rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y - rectChartSpace.Height(), strPlotStr); // Y axis Max
-		}
-		dcMem.TextOutW(rectChartSpace.right + PLOTXLABELGAP, rectChartSpace.bottom + 2, strPlotXlabel);
-		dcMem.TextOutW(rectChartSpace.left - 15, rectChartSpace.top - PLOTYLABELGAP, strPlotYlabel);
-
-		CPen* pOldPen;
-		CPen penLine(PS_SOLID, 1.8, RGB(99, 184, 255));
-		pOldPen = dcMem.SelectObject(&penLine);
-
-		double dLastResultDataX = 0;
-		double dLastResultDataY = 0;
-		double dLastV = 0;
-		double dCurrentV = 0;
-
-		while (fscanf(fpResult, "%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2]) != EOF)
-		{
-			if (iPlotFlag == 1)
-			{
-				PlotBeginPoint.x = dResultData[iXlabel] * dXscale + dXscaleConst;
-				PlotBeginPoint.y = dResultData[iYlabel] * dYscale + dYscaleConst;
-				if (bPlotVflag)
-				{
-					dCurrentV = 0;
-					PlotBeginPoint.y = dCurrentV * dYscale + dYscaleConst;
-					dLastResultDataX = dResultData[iXlabel];
-					dLastResultDataY = dResultData[iYlabel];
-					dLastV = dCurrentV;
-				}
-				dcMem.MoveTo(PlotBeginPoint.x, PlotBeginPoint.y);
-			}
-			else
-			{
-				PlotEndPoint.x = dResultData[iXlabel] * dXscale + dXscaleConst;
-				PlotEndPoint.y = dResultData[iYlabel] * dYscale + dYscaleConst;
-				if (bPlotVflag)
-				{
-					dCurrentV = (dResultData[iYlabel] - dLastResultDataY) / (dResultData[iXlabel] - dLastResultDataX);
-					PlotEndPoint.y = dCurrentV * dYscale + dYscaleConst;
-					if (bPlotAflag)
-					{
-						PlotEndPoint.y = ((dCurrentV - dLastV) / (dResultData[iXlabel] - dLastResultDataX)) * dYscale + dYscaleConst;
-					}
-					dLastResultDataX = dResultData[iXlabel];
-					dLastResultDataY = dResultData[iYlabel];
-					dLastV = dCurrentV;
-				}
-				double dEdgeXmax = m_dPlotXmax * dXscale + dXscaleConst;
-				double dEdgeXmin = m_dPlotXmin * dXscale + dXscaleConst;
-				double dEdgeYmax = m_dPlotYmax * dYscale + dYscaleConst;
-				double dEdgeYmin = m_dPlotYmin * dYscale + dYscaleConst;
-				if (PlotEndPoint.x > dEdgeXmax || PlotEndPoint.x < dEdgeXmin || PlotEndPoint.y < dEdgeYmax || PlotEndPoint.y > dEdgeYmin)
-				{
-					dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
-				}
-				else if (PlotBeginPoint.x > dEdgeXmax || PlotBeginPoint.x < dEdgeXmin || PlotBeginPoint.y < dEdgeYmax || PlotBeginPoint.y > dEdgeYmin)
-				{
-					dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
-				}
-				else
-				{
-					dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
-					if (m_bSimulationFlag)
-					{
-						SetTimer(0, m_dSampleTime, NULL);
-						ChartDC.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
-					}
-				}
-				PlotBeginPoint.x = PlotEndPoint.x;
-				PlotBeginPoint.y = PlotEndPoint.y;
-			}
-			iPlotFlag++;
-		}
-		fclose(fpResult);
-
-		ChartDC.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
-		bmp.DeleteObject();
-		dcMem.DeleteDC();
-		KillTimer(0);
-	}
-	else
-	{
-		CDialogEx::OnPaint();
+		CPaintDC dc(this);
+		dc.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &m_dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
 	}
 	
 	if (IsIconic())
@@ -655,6 +319,332 @@ void CpathspeedDlg::SelectPathVAmax(int cmd, double speed[2], double acc[2], CAr
 	{
 		// do nothing
 	}
+}
+
+void CpathspeedDlg::PlotResult()
+{
+	m_dcMem.DeleteDC();
+	m_bmp.DeleteObject();
+	CClientDC ChartDC(this);
+	m_dcMem.CreateCompatibleDC(&ChartDC);
+	m_bmp.CreateCompatibleBitmap(&ChartDC, m_rectPlotSpace.right, m_rectPlotSpace.bottom);
+	m_dcMem.SelectObject(&m_bmp);
+	m_dcMem.FillSolidRect(m_rectPlotSpace, RGB(255, 255, 255));
+	m_dcMem.Rectangle(m_rectChartSpace);
+
+	// 讀檔繪圖
+	POINTXY PlotBeginPoint, PlotEndPoint;
+	int iPlotFlag = 0;
+	double dResultData[12];
+	double dXscale = 1; // dXscale * X + dXscaleConst = X_pixel
+	double dYscale = 1; // dYscale * Y + dYscaleConst = Y_pixel
+	double dXscaleConst = 0;
+	double dYscaleConst = 0;
+	int iXlabel, iYlabel;
+	POINTXY PlotOrgPoint;
+	CString strPlotStr, strPlotXlabel, strPlotYlabel;
+	int iPlotType = m_cbPlotType.GetCurSel();
+	double dTmin = 0;
+	double dVmin = 0;
+	double dPlotMaxMin[4]; // Xmin, Xmax, Ymin, Ymax
+	double dPlotGridX, dPlotGridY;
+	bool bPlotVflag = FALSE;
+	bool bPlotAflag = FALSE;
+
+	//抓head,取max/min參數
+	FILE* fpResult;
+	fpResult = fopen(CT2A(m_cPlotPathName), "r");
+	//maxTime, maxV, maxX, minX, maxY, minY, maxVx, minVx, maxVy, minVy, maxA, minA
+	if (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5], &dResultData[6], &dResultData[7], &dResultData[8], &dResultData[9], &dResultData[10], &dResultData[11]) != EOF)
+	{
+		iPlotFlag++;
+	}
+
+	PlotOrgPoint.x = 1.0 * m_rectChartSpace.left;
+	PlotOrgPoint.y = 1.0 * m_rectChartSpace.bottom;
+
+	switch (iPlotType)
+	{
+	case(PLOTXY):
+	{
+		bPlotVflag = FALSE;
+		bPlotAflag = FALSE;
+		iXlabel = 1;
+		iYlabel = 2;
+		dPlotMaxMin[XMIN] = dResultData[3]; // Xmin
+		dPlotMaxMin[XMAX] = dResultData[2]; // Xmax
+		dPlotMaxMin[YMIN] = dResultData[5]; // Ymin
+		dPlotMaxMin[YMAX] = dResultData[4]; // Ymax
+		strPlotXlabel = _T("X");
+		strPlotYlabel = _T("Y");
+		break;
+	}
+
+	case(PLOTXT):
+	{
+		bPlotVflag = FALSE;
+		bPlotAflag = FALSE;
+		iXlabel = 0;
+		iYlabel = 1;
+		dPlotMaxMin[XMIN] = dTmin; // Xmin
+		dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
+		dPlotMaxMin[YMIN] = dResultData[3]; // Ymin
+		dPlotMaxMin[YMAX] = dResultData[2]; // Ymax
+		strPlotXlabel = _T("T (s)");
+		strPlotYlabel = _T("X");
+		break;
+	}
+
+	case(PLOTYT):
+	{
+		bPlotVflag = FALSE;
+		bPlotAflag = FALSE;
+		iXlabel = 0;
+		iYlabel = 2;
+		dPlotMaxMin[XMIN] = dTmin; // Xmin
+		dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
+		dPlotMaxMin[YMIN] = dResultData[5]; // Ymin
+		dPlotMaxMin[YMAX] = dResultData[4]; // Ymax
+		strPlotXlabel = _T("T (s)");
+		strPlotYlabel = _T("Y");
+		break;
+	}
+
+	case(PLOTVXT):
+	{
+		bPlotVflag = TRUE;
+		bPlotAflag = FALSE;
+		iXlabel = 0;
+		iYlabel = 1;
+		dPlotMaxMin[XMIN] = dTmin; // Xmin
+		dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
+		dPlotMaxMin[YMIN] = dResultData[7]; // Ymin
+		dPlotMaxMin[YMAX] = dResultData[6]; // Ymax
+		strPlotXlabel = _T("T (s)");
+		strPlotYlabel = _T("Vx");
+		break;
+	}
+
+	case(PLOTVYT):
+	{
+		bPlotVflag = TRUE;
+		bPlotAflag = FALSE;
+		iXlabel = 0;
+		iYlabel = 2;
+		dPlotMaxMin[XMIN] = dTmin; // Xmin
+		dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
+		dPlotMaxMin[YMIN] = dResultData[9]; // Ymin
+		dPlotMaxMin[YMAX] = dResultData[8]; // Ymax
+		strPlotXlabel = _T("T (s)");
+		strPlotYlabel = _T("Vx");
+		break;
+	}
+
+	case(PLOTAXT):
+	{
+		bPlotVflag = TRUE;
+		bPlotAflag = TRUE;
+		iXlabel = 0;
+		iYlabel = 1;
+		dPlotMaxMin[XMIN] = dTmin; // Xmin
+		dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
+		dPlotMaxMin[YMIN] = dResultData[11]; // Ymin
+		dPlotMaxMin[YMAX] = dResultData[10]; // Ymax
+		strPlotXlabel = _T("T (s)");
+		strPlotYlabel = _T("Ax");
+		break;
+	}
+
+	case(PLOTAYT):
+	{
+		bPlotVflag = TRUE;
+		bPlotAflag = TRUE;
+		iXlabel = 0;
+		iYlabel = 2;
+		dPlotMaxMin[XMIN] = dTmin; // Xmin
+		dPlotMaxMin[XMAX] = dResultData[0]; // Xmax
+		dPlotMaxMin[YMIN] = dResultData[11]; // Ymin
+		dPlotMaxMin[YMAX] = dResultData[10]; // Ymax
+		strPlotXlabel = _T("T (s)");
+		strPlotYlabel = _T("Yx");
+		break;
+	}
+
+	default: // XY
+	{
+		bPlotVflag = FALSE;
+		bPlotAflag = FALSE;
+		iXlabel = 1;
+		iYlabel = 2;
+		dPlotMaxMin[XMIN] = dResultData[3]; // Xmin
+		dPlotMaxMin[XMAX] = dResultData[2]; // Xmax
+		dPlotMaxMin[YMIN] = dResultData[5]; // Ymin
+		dPlotMaxMin[YMAX] = dResultData[4]; // Ymax
+		strPlotXlabel = _T("X");
+		strPlotYlabel = _T("Y");
+		break;
+	}
+	}
+
+	if (m_bZoomFlag)
+	{
+		dPlotMaxMin[XMIN] = m_dPlotXmin; // Xmin
+		dPlotMaxMin[XMAX] = m_dPlotXmax; // Xmax
+		dPlotMaxMin[YMIN] = m_dPlotYmin; // Ymin
+		dPlotMaxMin[YMAX] = m_dPlotYmax; // Ymax
+	}
+	else
+	{
+		m_dPlotXmin = dPlotMaxMin[XMIN];
+		m_dPlotXmax = dPlotMaxMin[XMAX];
+		m_dPlotYmin = dPlotMaxMin[YMIN];
+		m_dPlotYmax = dPlotMaxMin[YMAX];
+		UpdateData(FALSE);
+	}
+
+	dXscale = m_rectChartSpace.Width() / (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]);
+	dYscale = -m_rectChartSpace.Height() / (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]);
+	dPlotGridX = (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]) / 5;
+	dPlotGridY = (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]) / 5;
+	if (dPlotMaxMin[XMIN] == dPlotMaxMin[XMAX] && dPlotMaxMin[YMIN] == dPlotMaxMin[YMAX])
+	{
+		dXscale = 0;
+		dYscale = 0;
+		dXscaleConst = PlotOrgPoint.x + 0.5 * m_rectChartSpace.Width();
+		dYscaleConst = PlotOrgPoint.y - 0.5 * m_rectChartSpace.Height();
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
+		m_dcMem.TextOutW(dXscaleConst, m_rectChartSpace.bottom + 2, strPlotStr); // X axis Min
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
+		m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, dYscaleConst, strPlotStr); // Y axis Min
+	}
+	else if (dPlotMaxMin[XMIN] == dPlotMaxMin[XMAX])
+	{
+		dXscale = 0;
+		dXscaleConst = PlotOrgPoint.x + 0.5 * m_rectChartSpace.Width();
+		dYscaleConst = PlotOrgPoint.y - dPlotMaxMin[YMIN] * dYscale;
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
+		m_dcMem.TextOutW(dXscaleConst, m_rectChartSpace.bottom + 2, strPlotStr); // X axis Min
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
+		m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y, strPlotStr); // Y axis Min
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMAX]);
+		m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y - m_rectChartSpace.Height(), strPlotStr); // Y axis Max
+	}
+	else if (dPlotMaxMin[YMAX] == dPlotMaxMin[YMIN])
+	{
+		dYscale = 0;
+		dXscaleConst = PlotOrgPoint.x - dPlotMaxMin[XMIN] * dXscale;
+		dYscaleConst = PlotOrgPoint.y - 0.5 * m_rectChartSpace.Height();
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
+		m_dcMem.TextOutW(PlotOrgPoint.x, m_rectChartSpace.bottom + 2, strPlotStr); // X axis Min
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMAX]);
+		m_dcMem.TextOutW(PlotOrgPoint.x + m_rectChartSpace.Width(), m_rectChartSpace.bottom + 2, strPlotStr); // X axis Max
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
+		m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, dYscaleConst, strPlotStr); // Y axis Min
+	}
+	else
+	{
+		dXscaleConst = PlotOrgPoint.x - dPlotMaxMin[XMIN] * dXscale;
+		dYscaleConst = PlotOrgPoint.y - dPlotMaxMin[YMIN] * dYscale;
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
+		m_dcMem.TextOutW(PlotOrgPoint.x, m_rectChartSpace.bottom + 2, strPlotStr); // X axis Min
+
+		for (int i = 0; i < 4; i++)
+		{
+			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN] + dPlotGridX);
+			m_dcMem.TextOutW(PlotOrgPoint.x + dPlotGridX * dXscale, m_rectChartSpace.bottom + 2, strPlotStr);
+			m_dcMem.MoveTo(PlotOrgPoint.x + dPlotGridX * dXscale, m_rectChartSpace.bottom);
+			m_dcMem.LineTo(PlotOrgPoint.x + dPlotGridX * dXscale, m_rectChartSpace.top);
+			dPlotGridX += (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]) / 5;
+		}
+
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMAX]);
+		m_dcMem.TextOutW(PlotOrgPoint.x + m_rectChartSpace.Width(), m_rectChartSpace.bottom + 2, strPlotStr); // X axis Max
+
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
+		m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y, strPlotStr); // Y axis Min
+
+		for (int i = 0; i < 4; i++)
+		{
+			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN] + dPlotGridY);
+			m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y + dPlotGridY * dYscale, strPlotStr);
+			m_dcMem.MoveTo(m_rectChartSpace.left, PlotOrgPoint.y + dPlotGridY * dYscale);
+			m_dcMem.LineTo(m_rectChartSpace.right, PlotOrgPoint.y + dPlotGridY * dYscale);
+			dPlotGridY += (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]) / 5;
+		}
+
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMAX]);
+		m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y - m_rectChartSpace.Height(), strPlotStr); // Y axis Max
+	}
+	m_dcMem.TextOutW(m_rectChartSpace.right + PLOTXLABELGAP, m_rectChartSpace.bottom + 2, strPlotXlabel);
+	m_dcMem.TextOutW(m_rectChartSpace.left - 15, m_rectChartSpace.top - PLOTYLABELGAP, strPlotYlabel);
+
+	CPen* pOldPen;
+	CPen penLine(PS_SOLID, 1.8, RGB(99, 184, 255));
+	pOldPen = m_dcMem.SelectObject(&penLine);
+
+	double dLastResultDataX = 0;
+	double dLastResultDataY = 0;
+	double dLastV = 0;
+	double dCurrentV = 0;
+
+	while (fscanf(fpResult, "%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2]) != EOF)
+	{
+		if (iPlotFlag == 1)
+		{
+			PlotBeginPoint.x = dResultData[iXlabel] * dXscale + dXscaleConst;
+			PlotBeginPoint.y = dResultData[iYlabel] * dYscale + dYscaleConst;
+			if (bPlotVflag)
+			{
+				dCurrentV = 0;
+				PlotBeginPoint.y = dCurrentV * dYscale + dYscaleConst;
+				dLastResultDataX = dResultData[iXlabel];
+				dLastResultDataY = dResultData[iYlabel];
+				dLastV = dCurrentV;
+			}
+			m_dcMem.MoveTo(PlotBeginPoint.x, PlotBeginPoint.y);
+		}
+		else
+		{
+			PlotEndPoint.x = dResultData[iXlabel] * dXscale + dXscaleConst;
+			PlotEndPoint.y = dResultData[iYlabel] * dYscale + dYscaleConst;
+			if (bPlotVflag)
+			{
+				dCurrentV = (dResultData[iYlabel] - dLastResultDataY) / (dResultData[iXlabel] - dLastResultDataX);
+				PlotEndPoint.y = dCurrentV * dYscale + dYscaleConst;
+				if (bPlotAflag)
+				{
+					PlotEndPoint.y = ((dCurrentV - dLastV) / (dResultData[iXlabel] - dLastResultDataX)) * dYscale + dYscaleConst;
+				}
+				dLastResultDataX = dResultData[iXlabel];
+				dLastResultDataY = dResultData[iYlabel];
+				dLastV = dCurrentV;
+			}
+			double dEdgeXmax = m_dPlotXmax * dXscale + dXscaleConst;
+			double dEdgeXmin = m_dPlotXmin * dXscale + dXscaleConst;
+			double dEdgeYmax = m_dPlotYmax * dYscale + dYscaleConst;
+			double dEdgeYmin = m_dPlotYmin * dYscale + dYscaleConst;
+			if (PlotEndPoint.x > dEdgeXmax || PlotEndPoint.x < dEdgeXmin || PlotEndPoint.y < dEdgeYmax || PlotEndPoint.y > dEdgeYmin)
+			{
+				m_dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
+			}
+			else if (PlotBeginPoint.x > dEdgeXmax || PlotBeginPoint.x < dEdgeXmin || PlotBeginPoint.y < dEdgeYmax || PlotBeginPoint.y > dEdgeYmin)
+			{
+				m_dcMem.MoveTo(PlotEndPoint.x, PlotEndPoint.y);
+			}
+			else
+			{
+				m_dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
+			}
+			PlotBeginPoint.x = PlotEndPoint.x;
+			PlotBeginPoint.y = PlotEndPoint.y;
+		}
+		iPlotFlag++;
+	}
+	fclose(fpResult);
+	m_bmp.DeleteObject();
+
+	InvalidateRect(m_rectPlotSpace, TRUE);
+	UpdateWindow();
 }
 
 double CpathspeedDlg::CheckTheta(double CosTheta, double SinTheta, double Theta)
@@ -2213,8 +2203,8 @@ void CpathspeedDlg::OnBnClickedButtonPlot()
 		m_bPlotFlag = TRUE;
 		m_bZoomFlag = FALSE;
 		m_bSimulationFlag = FALSE;
-		InvalidateRect(m_rectPlotSpace, TRUE);
-		UpdateWindow();
+		PlotResult();
+		m_dcMem.DeleteDC();
 	}
 }
 
@@ -2231,8 +2221,8 @@ void CpathspeedDlg::OnBnClickedButtonZoom()
 		m_bPlotFlag = TRUE;
 		m_bZoomFlag = TRUE;
 		m_bSimulationFlag = FALSE;
-		InvalidateRect(m_rectPlotSpace, TRUE);
-		UpdateWindow();
+		PlotResult();
+		m_dcMem.DeleteDC();
 	}
 }
 
@@ -2250,15 +2240,63 @@ BOOL CpathspeedDlg::PreTranslateMessage(MSG* pMsg)
 }
 
 
-
 void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
-{
+{	
+	double len;
+
 	if (nIDEvent == 0)
 	{
-		/*CTime t1;
-		t1 = CTime::GetCurrentTime();
-		m_cPlotPathName = t1.Format("'%Y-%m-%d %H:%M:%S'");
-		GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);*/
+		m_tSimuEnd = clock();
+		CClientDC dc(this);
+		
+		double dResultData[12];
+		double dXscale = 1; // dXscale * X + dXscaleConst = X_pixel
+		double dYscale = 1; // dYscale * Y + dYscaleConst = Y_pixel
+		double dXscaleConst = 0;
+		double dYscaleConst = 0;
+		int iXlabel, iYlabel;
+		iXlabel = 1;
+		iYlabel = 2;
+		POINTXY PlotOrgPoint;
+		POINTXY PlotBeginPoint, PlotEndPoint;
+		PlotOrgPoint.x = 1.0 * m_rectChartSpace.left;
+		PlotOrgPoint.y = 1.0 * m_rectChartSpace.bottom;
+		dXscale = m_rectChartSpace.Width() / (m_dPlotXmax - m_dPlotXmin);
+		dYscale = -m_rectChartSpace.Height() / (m_dPlotYmax - m_dPlotYmin);
+		dXscaleConst = PlotOrgPoint.x - m_dPlotXmin * dXscale;
+		dYscaleConst = PlotOrgPoint.y - m_dPlotYmin * dYscale;
+
+		CPen* pOldPen;
+		CPen penLine(PS_SOLID, 1.8, RGB(99, 184, 255));
+		pOldPen = m_dcMem.SelectObject(&penLine);
+
+		len = 1.0 * (m_tSimuEnd - m_tSimuStart) / m_dSampleTime;
+
+		for (int i = 0; i < len; i++)
+		{
+			if (fscanf(fpResult, "%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2]) != EOF)
+			{
+				PlotEndPoint.x = dResultData[iXlabel] * dXscale + dXscaleConst;
+				PlotEndPoint.y = dResultData[iYlabel] * dYscale + dYscaleConst;
+				m_dcMem.LineTo(PlotEndPoint.x, PlotEndPoint.y);
+				PlotBeginPoint.x = PlotEndPoint.x;
+				PlotBeginPoint.y = PlotEndPoint.y;
+			}
+			else
+			{
+				dc.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &m_dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
+				m_cPlotPathName.Format(_T("%lf"), dResultData[0]);
+				GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
+				KillTimer(0);
+				fclose(fpResult);
+				m_dcMem.DeleteDC();
+				m_bmp.DeleteObject();
+			}
+		}
+		dc.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &m_dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
+		m_tSimuStart = clock();
+		m_cPlotPathName.Format(_T("%lf"), dResultData[0]);
+		GetDlgItem(IDC_STATIC_SELT_PLOT)->SetWindowTextW(m_cPlotPathName);
 	}
 
 	CDialogEx::OnTimer(nIDEvent);
@@ -2280,10 +2318,111 @@ void CpathspeedDlg::OnBnClickedButtonSimulation()
 	}
 	else
 	{
-		m_bPlotFlag = TRUE;
+		m_bPlotFlag = FALSE;
 		m_bZoomFlag = FALSE;
 		m_bSimulationFlag = TRUE;
-		InvalidateRect(m_rectPlotSpace, TRUE);
-		UpdateWindow();
+
+		m_dcMem.DeleteDC();
+		m_bmp.DeleteObject();
+		CClientDC dc(this);
+		m_dcMem.CreateCompatibleDC(&dc);
+		m_bmp.CreateCompatibleBitmap(&dc, m_rectPlotSpace.right, m_rectPlotSpace.bottom);
+		m_dcMem.SelectObject(&m_bmp);
+		m_dcMem.FillSolidRect(m_rectPlotSpace, RGB(255, 255, 255));
+		m_dcMem.Rectangle(m_rectChartSpace);
+
+		// 讀檔繪圖
+		POINTXY PlotBeginPoint, PlotEndPoint;
+		double dResultData[12];
+		double dXscale = 1; // dXscale * X + dXscaleConst = X_pixel
+		double dYscale = 1; // dYscale * Y + dYscaleConst = Y_pixel
+		double dXscaleConst = 0;
+		double dYscaleConst = 0;
+		int iXlabel, iYlabel;
+		POINTXY PlotOrgPoint;
+		CString strPlotStr, strPlotXlabel, strPlotYlabel;
+		int iPlotType = m_cbPlotType.GetCurSel();
+		double dTmin = 0;
+		double dVmin = 0;
+		double dPlotMaxMin[4]; // Xmin, Xmax, Ymin, Ymax
+		double dPlotGridX, dPlotGridY;
+		bool bPlotVflag = FALSE;
+		bool bPlotAflag = FALSE;
+
+		//抓head,取max/min參數
+
+		fpResult = fopen(CT2A(m_cPlotPathName), "r");
+		//maxTime, maxV, maxX, minX, maxY, minY, maxVx, minVx, maxVy, minVy, maxA, minA
+		if (fscanf(fpResult, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2], &dResultData[3], &dResultData[4], &dResultData[5], &dResultData[6], &dResultData[7], &dResultData[8], &dResultData[9], &dResultData[10], &dResultData[11]) != EOF)
+		{
+		}
+		PlotOrgPoint.x = 1.0 * m_rectChartSpace.left;
+		PlotOrgPoint.y = 1.0 * m_rectChartSpace.bottom;
+
+		bPlotVflag = FALSE;
+		bPlotAflag = FALSE;
+		iXlabel = 1;
+		iYlabel = 2;
+		dPlotMaxMin[XMIN] = dResultData[3]; // Xmin
+		dPlotMaxMin[XMAX] = dResultData[2]; // Xmax
+		dPlotMaxMin[YMIN] = dResultData[5]; // Ymin
+		dPlotMaxMin[YMAX] = dResultData[4]; // Ymax
+		m_dPlotXmin = dPlotMaxMin[XMIN];
+		m_dPlotXmax = dPlotMaxMin[XMAX];
+		m_dPlotYmin = dPlotMaxMin[YMIN];
+		m_dPlotYmax = dPlotMaxMin[YMAX];
+		strPlotXlabel = _T("X");
+		strPlotYlabel = _T("Y");
+		dXscale = m_rectChartSpace.Width() / (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]);
+		dYscale = -m_rectChartSpace.Height() / (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]);
+		dPlotGridX = (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]) / 5;
+		dPlotGridY = (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]) / 5;
+		dXscaleConst = PlotOrgPoint.x - dPlotMaxMin[XMIN] * dXscale;
+		dYscaleConst = PlotOrgPoint.y - dPlotMaxMin[YMIN] * dYscale;
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN]);
+		m_dcMem.TextOutW(PlotOrgPoint.x, m_rectChartSpace.bottom + 2, strPlotStr); // X axis Min
+
+		for (int i = 0; i < 4; i++)
+		{
+			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMIN] + dPlotGridX);
+			m_dcMem.TextOutW(PlotOrgPoint.x + dPlotGridX * dXscale, m_rectChartSpace.bottom + 2, strPlotStr);
+			m_dcMem.MoveTo(PlotOrgPoint.x + dPlotGridX * dXscale, m_rectChartSpace.bottom);
+			m_dcMem.LineTo(PlotOrgPoint.x + dPlotGridX * dXscale, m_rectChartSpace.top);
+			dPlotGridX += (dPlotMaxMin[XMAX] - dPlotMaxMin[XMIN]) / 5;
+		}
+
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[XMAX]);
+		m_dcMem.TextOutW(PlotOrgPoint.x + m_rectChartSpace.Width(), m_rectChartSpace.bottom + 2, strPlotStr); // X axis Max
+
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN]);
+		m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y, strPlotStr); // Y axis Min
+
+		for (int i = 0; i < 4; i++)
+		{
+			strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMIN] + dPlotGridY);
+			m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y + dPlotGridY * dYscale, strPlotStr);
+			m_dcMem.MoveTo(m_rectChartSpace.left, PlotOrgPoint.y + dPlotGridY * dYscale);
+			m_dcMem.LineTo(m_rectChartSpace.right, PlotOrgPoint.y + dPlotGridY * dYscale);
+			dPlotGridY += (dPlotMaxMin[YMAX] - dPlotMaxMin[YMIN]) / 5;
+		}
+
+		strPlotStr.Format(_T("%.2f"), dPlotMaxMin[YMAX]);
+		m_dcMem.TextOutW(m_rectChartSpace.left - PLOTYMAXMINGAP, PlotOrgPoint.y - m_rectChartSpace.Height(), strPlotStr); // Y axis Max
+		m_dcMem.TextOutW(m_rectChartSpace.right + PLOTXLABELGAP, m_rectChartSpace.bottom + 2, strPlotXlabel);
+		m_dcMem.TextOutW(m_rectChartSpace.left - 15, m_rectChartSpace.top - PLOTYLABELGAP, strPlotYlabel);
+		if (fscanf(fpResult, "%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2]) != EOF)
+		{
+			PlotBeginPoint.x = dResultData[iXlabel] * dXscale + dXscaleConst;
+			PlotBeginPoint.y = dResultData[iYlabel] * dYscale + dYscaleConst;
+			m_dcMem.MoveTo(PlotBeginPoint.x, PlotBeginPoint.y);
+		}
+		m_tSimuStart = clock();
+		SetTimer(0, 30, NULL);
 	}
+}
+
+
+void CpathspeedDlg::OnCbnSelchangeComboPlotType()
+{
+	OnBnClickedButtonPlot();
 }
