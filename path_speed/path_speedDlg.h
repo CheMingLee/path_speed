@@ -21,6 +21,8 @@
 #define PLOTAXT 5
 #define PLOTAYT 6
 #define PLOTGAP 70
+#define PLOTTOPGAP 40
+#define PLOTBOTTOMGAP 40
 #define PLOTXLABELGAP 50
 #define PLOTYLABELGAP 30
 #define PLOTORGGAP 20
@@ -76,19 +78,28 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
+private:
+	double m_dResultData[12];
+	int m_iXlabel, m_iYlabel;
+	void GetNewDCMem();
+	void PlotResult();
+	int GetResultHead(int PlotFlag);
+	void SelectPlotType();
+	void PlotGrid();
+	void PlotChart(int PlotFlag);
 public:
-	double m_dSampleTime, m_dThetaMax;
-	bool m_bPlotFlag, m_bZoomFlag, m_bSimulationFlag;
-	double m_dPlotXmin, m_dPlotXmax, m_dPlotYmin, m_dPlotYmax;
+	double m_dSampleTime, m_dThetaMax, m_dPlotXmin, m_dPlotXmax, m_dPlotYmin, m_dPlotYmax; // 系統參數
+	bool m_bPlotFlag, m_bZoomFlag, m_bSimulationFlag, m_bPlotVflag, m_bPlotAflag;
+	double m_dXscale, m_dYscale, m_dXscaleConst, m_dYscaleConst; // m_dXscale * X + m_dXscaleConst = X_pixel
 	double CheckTheta(double CosTheta, double SinTheta, double Theta);
 	double CheckMax(double a, double b);
 	double CheckMin(double a, double b);
-	void PlotResult();
+	void SelectFile();
 	void SelectInputFile(CString& pathName);
 	void SelectOutputFile(CString& pathName);
-	void ReadCommand(CString pathName, CArray<CMD, CMD&>& CmdArray);
-	void SelectPathVAmax(int cmd, double speed[2], double acc[2], CArray<PARAMS_VA_MAX, PARAMS_VA_MAX&>& PathVAMaxArray);
-	void CalArcPoint(POINTXY BeginP, CMD Cmd, CArray<POINTXY, POINTXY&>& PathPointArray, double speed[2], double acc[2], CArray<PARAMS_VA_MAX, PARAMS_VA_MAX&>& PathVAMaxArray);
+	void ReadCommand(CString pathName);
+	void SelectPathVAmax(int cmd, double speed[2], double acc[2]);
+	void CalArcPoint(POINTXY BeginP, CMD Cmd, double speed[2], double acc[2]);
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnBnClickedCancel();
 	afx_msg void OnBnClickedButtonSelectCommand();
@@ -98,17 +109,17 @@ public:
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnBnClickedButtonSelectPlot();
 	afx_msg void OnBnClickedButtonSimulation();
+	afx_msg void OnCbnSelchangeComboPlotType();
+	CComboBox m_cbPlotType;
 	CDC m_dcMem;
 	CBitmap m_bmp;
 	CRect m_rectPlotSpace, m_rectChartSpace;
-	CString m_cInputPathName, m_cOutputPathName, m_cPlotPathName;
+	FILE* fpResult;
+	clock_t m_tSimuStart, m_tSimuEnd;
+	CString m_cInputPathName, m_cOutputPathName, m_cOutTmpPathName, m_cPlotPathName, m_cSimuTime, m_strPlotXlabel, m_strPlotYlabel;
 	CArray<CMD, CMD&> m_arrCmdArray;
 	CArray<POINTXY, POINTXY&> m_arrOutXYArray, m_arrOutVxVyArray, m_arrPathPointArray;
 	CArray<SPEEDVT, SPEEDVT&> m_arrOutVTArray;
 	CArray<PARAMS_VA_MAX, PARAMS_VA_MAX&> m_arrPathVAMaxArray;
-	CComboBox m_cbPlotType;
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
-	afx_msg void OnCbnSelchangeComboPlotType();
-	FILE* fpResult;
-	clock_t m_tSimuStart, m_tSimuEnd, m_tSimuStartCheck, m_tSimuEndCheck;
 };
