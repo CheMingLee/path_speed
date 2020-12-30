@@ -79,6 +79,7 @@ protected:
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
 private:
+	// plot
 	double m_dResultData[12];
 	int m_iXlabel, m_iYlabel;
 	void GetNewDCMem();
@@ -87,6 +88,15 @@ private:
 	void SelectPlotType();
 	void PlotGrid();
 	void PlotChart(int PlotFlag);
+	// calculate
+	double m_dTimeStart;
+	double m_dBeginPoint[2], m_dEndPoint[2], m_dSpeed[2], m_dAcc[2];
+	int m_iCmdFlag, m_iCurrentCmd, m_iNextCmd;
+	double m_dVStart, m_dVEnd, m_dVmax, m_dAmax;
+	double m_dCurrentDistance, m_dNextDistance;
+	CMD m_CurrentCmd, m_NextCmd;
+	POINTXY m_BeginPoint, m_CurrentPoint, m_NextPoint;
+	void GetCurrentCMDinfo(int i);
 public:
 	double m_dSampleTime, m_dThetaMax, m_dPlotXmin, m_dPlotXmax, m_dPlotYmin, m_dPlotYmax; // 系統參數
 	bool m_bPlotFlag, m_bZoomFlag, m_bSimulationFlag, m_bPlotVflag, m_bPlotAflag;
