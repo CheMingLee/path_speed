@@ -247,6 +247,7 @@ void CpathspeedDlg::SelectInputFile(CString& pathName)
 	}
 }
 
+
 void CpathspeedDlg::SelectPlotType()
 {
 	int iPlotType = m_cbPlotType.GetCurSel();
@@ -1069,6 +1070,640 @@ void CpathspeedDlg::GetPathDistance()
 }
 
 
+void CpathspeedDlg::GetResultMaxMin()
+{
+	m_dMaxOutX = CheckMax(m_dMaxOutX, m_OutPoint.x);
+	m_dMaxOutY = CheckMax(m_dMaxOutY, m_OutPoint.y);
+	m_dMinOutX = CheckMin(m_dMinOutX, m_OutPoint.x);
+	m_dMinOutY = CheckMin(m_dMinOutY, m_OutPoint.y);
+	m_dMaxOutV = CheckMax(m_dMaxOutV, m_OutVT.v);
+	m_dMaxOutVx = CheckMax(m_dMaxOutVx, m_OutVxVy.x);
+	m_dMinOutVx = CheckMin(m_dMinOutVx, m_OutVxVy.x);
+	m_dMaxOutVy = CheckMax(m_dMaxOutVy, m_OutVxVy.y);
+	m_dMinOutVy = CheckMin(m_dMinOutVy, m_OutVxVy.y);
+}
+
+
+void CpathspeedDlg::GetResultPath()
+{
+	// 開始計算線段
+	double dTimeTotal = 0.0; // 總時間
+	double dXRatio, dYRatio; // 換算X, Y
+	double dDistanceSum;
+
+	// 規則判斷參數
+	double Vm; // 加速段與減速段交會處之速度
+	double S1; // 加速段位移
+	double S2; // 均速段位移
+	double S3; // 減速段位移
+	double T1; // 加速時間
+	double T2; // 均速時間
+	double T3; // 減速時間
+	double S; // 位移
+
+	double dDistanceNow = 0.0; // 目前已算完的距離
+	double dNextVmax;
+
+	m_OutVT.v = m_dVStart;
+	m_OutVT.t = m_dTimeStart;
+
+	for (int i = 0; i < m_arrPathPointArray.GetSize() - 1; i++)
+	{
+		m_dCurrentDistance = sqrt(pow((m_arrPathPointArray.GetAt(i + 1).x - m_arrPathPointArray.GetAt(i).x), 2) + pow((m_arrPathPointArray.GetAt(i + 1).y - m_arrPathPointArray.GetAt(i).y), 2));
+		dXRatio = (m_arrPathPointArray.GetAt(i + 1).x - m_arrPathPointArray.GetAt(i).x) / m_dCurrentDistance;
+		dYRatio = (m_arrPathPointArray.GetAt(i + 1).y - m_arrPathPointArray.GetAt(i).y) / m_dCurrentDistance;
+
+		m_dVmax = m_arrPathVAMaxArray.GetAt(i).m_dVmax;
+		m_dAmax = m_arrPathVAMaxArray.GetAt(i).m_dAmax;
+
+		m_dMaxOutA = CheckMax(m_dMaxOutA, m_dAmax);
+		m_dMinOutA = -m_dMaxOutA;
+
+		dNextVmax = m_arrPathVAMaxArray.GetAt(i + 1).m_dVmax;
+
+		dDistanceSum = 0;
+
+		if (dNextVmax != 0.0) // 還有下一段, 因此 Vend != 0
+		{
+			S = m_dDistance - dDistanceNow;
+			m_dVEnd = 0.0;
+			S1 = (pow(m_dVmax, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
+			S3 = (pow(m_dVmax, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
+			S2 = S - S1 - S3;
+			if (S2 <= 0.0) // 沒有均速階段, 剩下的距離之速度規劃為三角形
+			{
+				S1 = (2.0 * m_dAmax * S - pow(m_dVStart, 2)) / (4.0 * m_dAmax);
+				if (S1 < 0.0) // 只有減速
+				{
+					m_dVEnd = sqrt(pow(m_dVStart, 2) - 2.0 * m_dAmax * m_dCurrentDistance);
+					dTimeTotal = 2.0 * m_dCurrentDistance / (m_dVStart + m_dVEnd);
+					while (dDistanceSum < m_dCurrentDistance)
+					{
+						dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+						m_OutVT.v -= m_dAmax * m_dt;
+						if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+						{
+							break;
+						}
+						m_OutVT.t += m_dt;
+						m_dt = m_dSampleTime * pow(10, -3);
+						AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+						GetResultMaxMin();
+					}
+				}
+				else // 加速到Vm再減速
+				{
+					Vm = sqrt((2.0 * m_dAmax * S + pow(m_dVStart, 2)) / 2.0);
+					S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
+					T1 = 2.0 * S1 / (m_dVStart + Vm);
+					if (m_dCurrentDistance <= S1) // 此小線段都在加速區域
+					{
+						m_dVEnd = sqrt(pow(m_dVStart, 2) + 2.0 * m_dAmax * m_dCurrentDistance);
+						if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，重算Vm，此小線段會進減速區域
+						{
+							m_dVEnd = dNextVmax;
+							Vm = sqrt((2.0 * m_dAmax * m_dCurrentDistance + pow(m_dVStart, 2) + pow(m_dVEnd, 2)) / 2.0);
+							S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
+							T1 = 2.0 * S1 / (m_dVStart + Vm);
+							T3 = (2.0 * (m_dCurrentDistance - S1)) / (Vm + m_dVEnd);
+							dTimeTotal = T1 + T3;
+							while (dDistanceSum < S1)
+							{
+								dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+								m_OutVT.v += m_dAmax * m_dt;
+								m_OutVT.t += m_dt;
+								m_dt = m_dSampleTime * pow(10, -3);
+								if (dDistanceSum > S1)
+								{
+									dDistanceSum = dDistanceSum - (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - Vm);
+									m_OutVT.v = Vm - m_dAmax * (m_OutVT.t - m_dTimeStart - T1);
+								}
+								AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+								GetResultMaxMin();
+							}
+							while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
+							{
+								dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+								m_OutVT.v -= m_dAmax * m_dt;
+								if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+								{
+									break;
+								}
+								m_OutVT.t += m_dt;
+								m_dt = m_dSampleTime * pow(10, -3);
+								AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+								GetResultMaxMin();
+							}
+						}
+						else // 此小線段都在加速區域
+						{
+							dTimeTotal = 2.0 * m_dCurrentDistance / (m_dVStart + m_dVEnd);
+							while (dDistanceSum < S1)
+							{
+								dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+								m_OutVT.v += m_dAmax * m_dt;
+								if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v >= m_dVEnd)
+								{
+									break;
+								}
+								m_OutVT.t += m_dt;
+								m_dt = m_dSampleTime * pow(10, -3);
+								AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+								GetResultMaxMin();
+							}
+						}
+					}
+					else // 此小線段會進減速區域
+					{
+						m_dVEnd = sqrt(2.0 * m_dAmax * (S - m_dCurrentDistance));
+						if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，重算Vm
+						{
+							m_dVEnd = dNextVmax;
+							Vm = sqrt((2.0 * m_dAmax * m_dCurrentDistance + pow(m_dVStart, 2) + pow(m_dVEnd, 2)) / 2.0);
+							S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
+							T1 = 2.0 * S1 / (m_dVStart + Vm);
+							T3 = (2.0 * (m_dCurrentDistance - S1)) / (Vm + m_dVEnd);
+							dTimeTotal = T1 + T3;
+							while (dDistanceSum < S1)
+							{
+								dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+								m_OutVT.v += m_dAmax * m_dt;
+								m_OutVT.t += m_dt;
+								m_dt = m_dSampleTime * pow(10, -3);
+								if (dDistanceSum > S1)
+								{
+									dDistanceSum = dDistanceSum - (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - Vm);
+									m_OutVT.v = Vm - m_dAmax * (m_OutVT.t - m_dTimeStart - T1);
+								}
+								AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+								GetResultMaxMin();
+							}
+							while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
+							{
+								dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+								m_OutVT.v -= m_dAmax * m_dt;
+								if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+								{
+									break;
+								}
+								m_OutVT.t += m_dt;
+								m_dt = m_dSampleTime * pow(10, -3);
+								AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+								GetResultMaxMin();
+							}
+						}
+						else // 此小線段會進減速區域
+						{
+							T3 = (2.0 * (m_dCurrentDistance - S1)) / (Vm + m_dVEnd);
+							dTimeTotal = T1 + T3;
+							while (dDistanceSum < S1)
+							{
+								dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+								m_OutVT.v += m_dAmax * m_dt;
+								m_OutVT.t += m_dt;
+								m_dt = m_dSampleTime * pow(10, -3);
+								if (dDistanceSum > S1)
+								{
+									dDistanceSum = dDistanceSum - (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - Vm);
+									m_OutVT.v = Vm - m_dAmax * (m_OutVT.t - m_dTimeStart - T1);
+								}
+								AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+								GetResultMaxMin();
+							}
+							while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
+							{
+								dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+								m_OutVT.v -= m_dAmax * m_dt;
+								if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+								{
+									break;
+								}
+								m_OutVT.t += m_dt;
+								m_dt = m_dSampleTime * pow(10, -3);
+								AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+								GetResultMaxMin();
+							}
+						}
+					}
+				}
+			}
+			else // 剩下的距離之速度規劃還能是梯形
+			{
+				if (m_dCurrentDistance <= S1) // 此小線段都在加速區域
+				{
+					m_dVEnd = sqrt(pow(m_dVStart, 2) + 2.0 * m_dAmax * m_dCurrentDistance);
+					if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，重算Vm
+					{
+						m_dVEnd = dNextVmax;
+						Vm = sqrt((2.0 * m_dAmax * m_dCurrentDistance + pow(m_dVStart, 2) + pow(m_dVEnd, 2)) / 2.0);
+						S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
+						T1 = 2.0 * S1 / (m_dVStart + Vm);
+						T3 = (2.0 * (m_dCurrentDistance - S1)) / (Vm + m_dVEnd);
+						dTimeTotal = T1 + T3;
+						while (dDistanceSum < S1)
+						{
+							dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v += m_dAmax * m_dt;
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							if (dDistanceSum > S1)
+							{
+								dDistanceSum = dDistanceSum - (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - Vm);
+								m_OutVT.v = Vm - m_dAmax * (m_OutVT.t - m_dTimeStart - T1);
+							}
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+						while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
+						{
+							dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v -= m_dAmax * m_dt;
+							if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+							{
+								break;
+							}
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+					}
+					else
+					{
+						dTimeTotal = 2.0 * m_dCurrentDistance / (m_dVStart + m_dVEnd);
+						while (dDistanceSum < S1)
+						{
+							dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v += m_dAmax * m_dt;
+							if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v >= m_dVEnd)
+							{
+								break;
+							}
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+					}
+				}
+				else if (m_dCurrentDistance > S1 && m_dCurrentDistance <= (S1 + S2)) // 此小線段會到均速區域
+				{
+					m_dVEnd = m_dVmax;
+					if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，提早開始減速
+					{
+						m_dVEnd = dNextVmax;
+						S = m_dCurrentDistance;
+						S1 = (pow(m_dVmax, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
+						S3 = (pow(m_dVmax, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
+						S2 = S - S1 - S3;
+						T1 = (2.0 * S1) / (m_dVStart + m_dVmax);
+						T2 = S2 / m_dVmax;
+						T3 = (2.0 * (m_dCurrentDistance - S1 - S2)) / (m_dVmax + m_dVEnd);
+						dTimeTotal = T1 + T2 + T3;
+						while (dDistanceSum < S1)
+						{
+							dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v += m_dAmax * m_dt;
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							if (dDistanceSum > S1)
+							{
+								dDistanceSum = dDistanceSum - 0.5 * (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - m_dVmax);
+								m_OutVT.v = m_dVmax;
+							}
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+						while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
+						{
+							dDistanceSum += m_dVmax * m_dt;
+							m_OutVT.v = m_dVmax;
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							if ((S - dDistanceSum) < S3)
+							{
+								m_OutVT.v = m_dVmax - m_dAmax * (m_OutVT.t - m_dTimeStart - T1 - T2);
+								dDistanceSum = dDistanceSum - 0.5 * (m_dVmax - m_OutVT.v) * (m_OutVT.t - m_dTimeStart - T1 - T2);
+							}
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+						while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
+						{
+							dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v -= m_dAmax * m_dt;
+							if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+							{
+								break;
+							}
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+					}
+					else
+					{
+						T1 = (2.0 * S1) / (m_dVStart + m_dVmax);
+						T2 = (m_dCurrentDistance - S1) / m_dVmax;
+						dTimeTotal = T1 + T2;
+						while (dDistanceSum < S1)
+						{
+							dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v += m_dAmax * m_dt;
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							if (dDistanceSum > S1)
+							{
+								dDistanceSum = dDistanceSum - 0.5 * (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - m_dVmax);
+								m_OutVT.v = m_dVmax;
+							}
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+						while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
+						{
+							dDistanceSum += m_dVmax * m_dt;
+							m_OutVT.v = m_dVmax;
+							if (dDistanceSum >= m_dCurrentDistance)
+							{
+								break;
+							}
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+					}
+				}
+				else // 此小線段會到減速區域
+				{
+					m_dVEnd = sqrt(2.0 * m_dAmax * (S - m_dCurrentDistance));
+					if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，提早開始減速
+					{
+						m_dVEnd = dNextVmax;
+						S = m_dCurrentDistance;
+						S1 = (pow(m_dVmax, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
+						S3 = (pow(m_dVmax, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
+						S2 = S - S1 - S3;
+						T1 = (2.0 * S1) / (m_dVStart + m_dVmax);
+						T2 = S2 / m_dVmax;
+						T3 = (2.0 * (m_dCurrentDistance - S1 - S2)) / (m_dVmax + m_dVEnd);
+						dTimeTotal = T1 + T2 + T3;
+						while (dDistanceSum < S1)
+						{
+							dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v += m_dAmax * m_dt;
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							if (dDistanceSum > S1)
+							{
+								dDistanceSum = dDistanceSum - 0.5 * (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - m_dVmax);
+								m_OutVT.v = m_dVmax;
+							}
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+						while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
+						{
+							dDistanceSum += m_dVmax * m_dt;
+							m_OutVT.v = m_dVmax;
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							if ((S - dDistanceSum) < S3)
+							{
+								m_OutVT.v = m_dVmax - m_dAmax * (m_OutVT.t - m_dTimeStart - T1 - T2);
+								dDistanceSum = dDistanceSum - 0.5 * (m_dVmax - m_OutVT.v) * (m_OutVT.t - m_dTimeStart - T1 - T2);
+							}
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+						while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
+						{
+							dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v -= m_dAmax * m_dt;
+							if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+							{
+								break;
+							}
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+					}
+					else
+					{
+						T1 = (2.0 * S1) / (m_dVStart + m_dVmax);
+						T2 = S2 / m_dVmax;
+						T3 = (2.0 * (m_dCurrentDistance - S1 - S2)) / (m_dVmax + m_dVEnd);
+						dTimeTotal = T1 + T2 + T3;
+						while (dDistanceSum < S1)
+						{
+							dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v += m_dAmax * m_dt;
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							if (dDistanceSum > S1)
+							{
+								dDistanceSum = dDistanceSum - 0.5 * (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - m_dVmax);
+								m_OutVT.v = m_dVmax;
+							}
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+						while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
+						{
+							dDistanceSum += m_dVmax * m_dt;
+							m_OutVT.v = m_dVmax;
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							if ((S - dDistanceSum) < S3)
+							{
+								m_OutVT.v = m_dVmax - m_dAmax * (m_OutVT.t - m_dTimeStart - T1 - T2);
+								dDistanceSum = dDistanceSum - 0.5 * (m_dVmax - m_OutVT.v) * (m_OutVT.t - m_dTimeStart - T1 - T2);
+							}
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+						while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
+						{
+							dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v -= m_dAmax * m_dt;
+							if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+							{
+								break;
+							}
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+					}
+				}
+			}
+		}
+		else // 沒有下一段, Vend必須為0
+		{
+			S = m_dCurrentDistance;
+			m_dVEnd = 0.0;
+			S1 = (pow(m_dVmax, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
+			S3 = (pow(m_dVmax, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
+			S2 = S - S1 - S3;
+			if (S2 <= 0.0) // 沒有均速階段, 剩下的距離之速度規劃為三角形
+			{
+				S1 = (2.0 * m_dAmax * S - pow(m_dVStart, 2)) / (4.0 * m_dAmax);
+				if (S1 < 0.0) // 只有減速
+				{
+					dTimeTotal = 2.0 * m_dCurrentDistance / (m_dVStart + m_dVEnd);
+					while (dDistanceSum < m_dCurrentDistance)
+					{
+						dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+						m_OutVT.v -= m_dAmax * m_dt;
+						if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+						{
+							break;
+						}
+						m_OutVT.t += m_dt;
+						m_dt = m_dSampleTime * pow(10, -3);
+						AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+						GetResultMaxMin();
+					}
+				}
+				else // 加速到Vm再減速
+				{
+					Vm = sqrt((2.0 * m_dAmax * S + pow(m_dVStart, 2)) / 2.0);
+					S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
+					S3 = (pow(Vm, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
+					S2 = 0.0;
+					T1 = 2.0 * S1 / (m_dVStart + Vm);
+					T2 = 0.0;
+					T3 = 2.0 * S3 / (m_dVEnd + Vm);
+					dTimeTotal = T1 + T2 + T3;
+					if (Vm > m_dVmax)
+					{
+						MessageBox(_T("Vm 不可大於 Vmax, 計算結果錯誤"));
+					}
+					else // 三角形
+					{
+						while (dDistanceSum < S1)
+						{
+							dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v += m_dAmax * m_dt;
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							if (dDistanceSum > S1)
+							{
+								dDistanceSum = dDistanceSum - (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - Vm);
+								m_OutVT.v = Vm - m_dAmax * (m_OutVT.t - m_dTimeStart - T1);
+							}
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+						while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
+						{
+							dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+							m_OutVT.v -= m_dAmax * m_dt;
+							if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+							{
+								break;
+							}
+							m_OutVT.t += m_dt;
+							m_dt = m_dSampleTime * pow(10, -3);
+							AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+							GetResultMaxMin();
+						}
+					}
+				}
+			}
+			else // 剩下的距離之速度規劃還能是梯形
+			{
+				T1 = 2.0 * S1 / (m_dVStart + m_dVmax);
+				T2 = S2 / m_dVmax;
+				T3 = 2.0 * S3 / (m_dVEnd + m_dVmax);
+				dTimeTotal = T1 + T2 + T3;
+				while (dDistanceSum < S1)
+				{
+					dDistanceSum += m_OutVT.v * m_dt + 0.5 * m_dAmax * pow(m_dt, 2);
+					m_OutVT.v += m_dAmax * m_dt;
+					m_OutVT.t += m_dt;
+					m_dt = m_dSampleTime * pow(10, -3);
+					if (dDistanceSum > S1)
+					{
+						dDistanceSum = dDistanceSum - 0.5 * (m_OutVT.t - m_dTimeStart - T1) * (m_OutVT.v - m_dVmax);
+						m_OutVT.v = m_dVmax;
+					}
+					AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+					GetResultMaxMin();
+				}
+				while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
+				{
+					dDistanceSum += m_dVmax * m_dt;
+					m_OutVT.v = m_dVmax;
+					m_OutVT.t += m_dt;
+					m_dt = m_dSampleTime * pow(10, -3);
+					if ((S - dDistanceSum) < S3)
+					{
+						m_OutVT.v = m_dVmax - m_dAmax * (m_OutVT.t - m_dTimeStart - T1 - T2);
+						dDistanceSum = dDistanceSum - 0.5 * (m_dVmax - m_OutVT.v) * (m_OutVT.t - m_dTimeStart - T1 - T2);
+					}
+					AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+					GetResultMaxMin();
+				}
+				while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
+				{
+					dDistanceSum += m_OutVT.v * m_dt - 0.5 * m_dAmax * pow(m_dt, 2);
+					m_OutVT.v -= m_dAmax * m_dt;
+					if (dDistanceSum >= m_dCurrentDistance || m_OutVT.v <= m_dVEnd)
+					{
+						break;
+					}
+					m_OutVT.t += m_dt;
+					m_dt = m_dSampleTime * pow(10, -3);
+					AddOutData(dXRatio, dYRatio, dDistanceSum, i);
+					GetResultMaxMin();
+				}
+			}
+		}
+
+		// 輸出此線段最後一點的參數
+		if (m_OutVT.t + m_dt == m_dTimeStart + dTimeTotal)
+		{
+			m_OutVT.v = m_dVEnd; // 終止速度
+			m_OutVT.t = m_dTimeStart + dTimeTotal; // 終止時間
+			m_OutVxVy.x = m_OutVT.v * dXRatio;
+			m_OutVxVy.y = m_OutVT.v * dYRatio;
+			m_OutPoint.x = m_arrPathPointArray.GetAt(i + 1).x;
+			m_OutPoint.y = m_arrPathPointArray.GetAt(i + 1).y;
+			m_arrOutVTArray.Add(m_OutVT);
+			m_arrOutXYArray.Add(m_OutPoint);
+			GetResultMaxMin();
+		}
+		else
+		{
+			m_dt = m_OutVT.t + m_dt - (m_dTimeStart + dTimeTotal);
+			m_OutVT.v = m_dVEnd; // 終止速度
+			m_OutVT.t = m_dTimeStart + dTimeTotal; // 終止時間
+		}
+
+		m_dTimeStart += dTimeTotal;
+		m_dVStart = m_dVEnd;
+		dDistanceNow += m_dCurrentDistance;
+	}
+}
+
+
+void CpathspeedDlg::AddOutData(double XRatio, double YRatio, double DistanceSum, int i)
+{
+	m_OutVxVy.x = m_OutVT.v * XRatio;
+	m_OutVxVy.y = m_OutVT.v * YRatio;
+	m_OutPoint.x = DistanceSum * XRatio + m_arrPathPointArray.GetAt(i).x;
+	m_OutPoint.y = DistanceSum * YRatio + m_arrPathPointArray.GetAt(i).y;
+	m_arrOutVTArray.Add(m_OutVT);
+	m_arrOutXYArray.Add(m_OutPoint);
+}
+
+
 void CpathspeedDlg::OnBnClickedButtonCaculate()
 {
 	UpdateData(TRUE);
@@ -1088,20 +1723,9 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		FILE* OutFile;
 		OutFile = fopen(CT2A(m_cOutTmpPathName), "w");
 
-		POINTXY OutPoint, OutVxVy;
-		SPEEDVT OutVT;
-
-
-		PARAMS_VA_MAX VAmax;
-
 		m_dTimeStart = 0.0;
 		m_dVStart = 0.0;
-
-		
-
-		
-
-		double dt = m_dSampleTime * pow(10, -3);
+		m_dt = m_dSampleTime * pow(10, -3);
 
 		// Command classification
 		for (int i = 0; i < m_arrCmdArray.GetSize(); i++)
@@ -1117,17 +1741,17 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					m_CurrentCmd = m_arrCmdArray[i];
 					m_dBeginPoint[0] = m_CurrentCmd.m_dParams[0];
 					m_dBeginPoint[1] = m_CurrentCmd.m_dParams[1];
-					OutPoint.x = m_dBeginPoint[0];
-					OutPoint.y = m_dBeginPoint[1];
-					m_dMaxOutX = OutPoint.x;
-					m_dMaxOutY = OutPoint.y;
-					m_dMinOutX = OutPoint.x;
-					m_dMinOutY = OutPoint.y;
-					OutVT.t = m_dTimeStart; // 起始時間為0
-					OutVT.v = m_dVStart; // 起始速度為0
-					OutVxVy.x = 0;
-					OutVxVy.y = 0;
-					fprintf(OutFile, "%lf,%lf,%lf\n", OutVT.t, OutPoint.x, OutPoint.y);
+					m_OutPoint.x = m_dBeginPoint[0];
+					m_OutPoint.y = m_dBeginPoint[1];
+					m_dMaxOutX = m_OutPoint.x;
+					m_dMaxOutY = m_OutPoint.y;
+					m_dMinOutX = m_OutPoint.x;
+					m_dMinOutY = m_OutPoint.y;
+					m_OutVT.t = m_dTimeStart; // 起始時間為0
+					m_OutVT.v = m_dVStart; // 起始速度為0
+					m_OutVxVy.x = 0;
+					m_OutVxVy.y = 0;
+					fprintf(OutFile, "%lf,%lf,%lf\n", m_OutVT.t, m_OutPoint.x, m_OutPoint.y);
 					break;
 				}
 				case SPEED:
@@ -1176,1022 +1800,16 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					CheckPathAngle();
 
 					// 線段結束, Vend為0
-					VAmax.m_dVmax = 0.0;
-					VAmax.m_dAmax = 0.0;
-					m_arrPathVAMaxArray.Add(VAmax);
+					m_VAmax.m_dVmax = 0.0;
+					m_VAmax.m_dAmax = 0.0;
+					m_arrPathVAMaxArray.Add(m_VAmax);
 
 					// 計算此段總距離
 					GetPathDistance();
 					
-
-					// 開始計算線段
-					double dTimeTotal = 0.0; // 總時間
-					double dXRatio; // 換算X
-					double dYRatio; // 換算Y
-					double dDistanceSum;
-
-					// 規則判斷參數
-					double Vm; // 加速段與減速段交會處之速度
-					double S1; // 加速段位移
-					double S2; // 均速段位移
-					double S3; // 減速段位移
-					double T1; // 加速時間
-					double T2; // 均速時間
-					double T3; // 減速時間
-					double S; // 位移
-
-					double dDistanceNow = 0.0; // 目前已算完的距離
-					double dNextVmax;
-
-					OutVT.v = m_dVStart;
-					OutVT.t = m_dTimeStart;
-
-					for (int i = 0; i < m_arrPathPointArray.GetSize() - 1; i++)
-					{
-						m_dCurrentDistance = sqrt(pow((m_arrPathPointArray.GetAt(i + 1).x - m_arrPathPointArray.GetAt(i).x), 2) + pow((m_arrPathPointArray.GetAt(i + 1).y - m_arrPathPointArray.GetAt(i).y), 2));
-						dXRatio = (m_arrPathPointArray.GetAt(i + 1).x - m_arrPathPointArray.GetAt(i).x) / m_dCurrentDistance;
-						dYRatio = (m_arrPathPointArray.GetAt(i + 1).y - m_arrPathPointArray.GetAt(i).y) / m_dCurrentDistance;
-
-						m_dVmax = m_arrPathVAMaxArray.GetAt(i).m_dVmax;
-						m_dAmax = m_arrPathVAMaxArray.GetAt(i).m_dAmax;
-
-						m_dMaxOutA = CheckMax(m_dMaxOutA, m_dAmax);
-						m_dMinOutA = -m_dMaxOutA;
-
-						dNextVmax = m_arrPathVAMaxArray.GetAt(i + 1).m_dVmax;
-
-						dDistanceSum = 0;
-
-						if (dNextVmax != 0.0) // 還有下一段, 因此 Vend != 0
-						{
-							S = m_dDistance - dDistanceNow;
-							m_dVEnd = 0.0;
-							S1 = (pow(m_dVmax, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
-							S3 = (pow(m_dVmax, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
-							S2 = S - S1 - S3;
-							if (S2 <= 0.0) // 沒有均速階段, 剩下的距離之速度規劃為三角形
-							{
-								S1 = (2.0 * m_dAmax * S - pow(m_dVStart, 2)) / (4.0 * m_dAmax);
-								if (S1 < 0.0) // 只有減速
-								{
-									m_dVEnd = sqrt(pow(m_dVStart, 2) - 2.0 * m_dAmax * m_dCurrentDistance);
-									dTimeTotal = 2.0 * m_dCurrentDistance / (m_dVStart + m_dVEnd);
-									while (dDistanceSum < m_dCurrentDistance)
-									{
-										dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-										OutVT.v -= m_dAmax * dt;
-										if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-										{
-											break;
-										}
-										OutVT.t += dt;
-										dt = m_dSampleTime * pow(10, -3);
-										OutVxVy.x = OutVT.v * dXRatio;
-										OutVxVy.y = OutVT.v * dYRatio;
-										OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-										OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-										m_arrOutVTArray.Add(OutVT);
-										m_arrOutVxVyArray.Add(OutVxVy);
-										m_arrOutXYArray.Add(OutPoint);
-										m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-										m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-										m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-										m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-										m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-										m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-										m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-										m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-										m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-									}
-								}
-								else // 加速到Vm再減速
-								{
-									Vm = sqrt((2.0 * m_dAmax * S + pow(m_dVStart, 2)) / 2.0);
-									S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
-									T1 = 2.0 * S1 / (m_dVStart + Vm);
-									if (m_dCurrentDistance <= S1) // 此小線段都在加速區域
-									{
-										m_dVEnd = sqrt(pow(m_dVStart, 2) + 2.0 * m_dAmax * m_dCurrentDistance);
-										if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，重算Vm，此小線段會進減速區域
-										{
-											m_dVEnd = dNextVmax;
-											Vm = sqrt((2.0 * m_dAmax * m_dCurrentDistance + pow(m_dVStart, 2) + pow(m_dVEnd, 2)) / 2.0);
-											S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
-											T1 = 2.0 * S1 / (m_dVStart + Vm);
-											T3 = (2.0 * (m_dCurrentDistance - S1)) / (Vm + m_dVEnd);
-											dTimeTotal = T1 + T3;
-											while (dDistanceSum < S1)
-											{
-												dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-												OutVT.v += m_dAmax * dt;
-												OutVT.t += dt;
-												dt = m_dSampleTime * pow(10, -3);
-												if (dDistanceSum > S1)
-												{
-													dDistanceSum = dDistanceSum - (OutVT.t - m_dTimeStart - T1) * (OutVT.v - Vm);
-													OutVT.v = Vm - m_dAmax * (OutVT.t - m_dTimeStart - T1);
-												}
-												OutVxVy.x = OutVT.v * dXRatio;
-												OutVxVy.y = OutVT.v * dYRatio;
-												OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-												OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-												m_arrOutVTArray.Add(OutVT);
-												m_arrOutVxVyArray.Add(OutVxVy);
-												m_arrOutXYArray.Add(OutPoint);
-												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-											}
-											while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
-											{
-												dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-												OutVT.v -= m_dAmax * dt;
-												if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-												{
-													break;
-												}
-												OutVT.t += dt;
-												dt = m_dSampleTime * pow(10, -3);
-												OutVxVy.x = OutVT.v * dXRatio;
-												OutVxVy.y = OutVT.v * dYRatio;
-												OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-												OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-												m_arrOutVTArray.Add(OutVT);
-												m_arrOutVxVyArray.Add(OutVxVy);
-												m_arrOutXYArray.Add(OutPoint);
-												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-											}
-										}
-										else // 此小線段都在加速區域
-										{
-											dTimeTotal = 2.0 * m_dCurrentDistance / (m_dVStart + m_dVEnd);
-											while (dDistanceSum < S1)
-											{
-												dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-												OutVT.v += m_dAmax * dt;
-												if (dDistanceSum >= m_dCurrentDistance || OutVT.v >= m_dVEnd)
-												{
-													break;
-												}
-												OutVT.t += dt;
-												dt = m_dSampleTime * pow(10, -3);
-												OutVxVy.x = OutVT.v * dXRatio;
-												OutVxVy.y = OutVT.v * dYRatio;
-												OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-												OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-												m_arrOutVTArray.Add(OutVT);
-												m_arrOutVxVyArray.Add(OutVxVy);
-												m_arrOutXYArray.Add(OutPoint);
-												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-											}
-										}
-									}
-									else // 此小線段會進減速區域
-									{
-										m_dVEnd = sqrt(2.0 * m_dAmax * (S - m_dCurrentDistance));
-										if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，重算Vm
-										{
-											m_dVEnd = dNextVmax;
-											Vm = sqrt((2.0 * m_dAmax * m_dCurrentDistance + pow(m_dVStart, 2) + pow(m_dVEnd, 2)) / 2.0);
-											S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
-											T1 = 2.0 * S1 / (m_dVStart + Vm);
-											T3 = (2.0 * (m_dCurrentDistance - S1)) / (Vm + m_dVEnd);
-											dTimeTotal = T1 + T3;
-											while (dDistanceSum < S1)
-											{
-												dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-												OutVT.v += m_dAmax * dt;
-												OutVT.t += dt;
-												dt = m_dSampleTime * pow(10, -3);
-												if (dDistanceSum > S1)
-												{
-													dDistanceSum = dDistanceSum - (OutVT.t - m_dTimeStart - T1) * (OutVT.v - Vm);
-													OutVT.v = Vm - m_dAmax * (OutVT.t - m_dTimeStart - T1);
-												}
-												OutVxVy.x = OutVT.v * dXRatio;
-												OutVxVy.y = OutVT.v * dYRatio;
-												OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-												OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-												m_arrOutVTArray.Add(OutVT);
-												m_arrOutVxVyArray.Add(OutVxVy);
-												m_arrOutXYArray.Add(OutPoint);
-												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-											}
-											while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
-											{
-												dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-												OutVT.v -= m_dAmax * dt;
-												if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-												{
-													break;
-												}
-												OutVT.t += dt;
-												dt = m_dSampleTime * pow(10, -3);
-												OutVxVy.x = OutVT.v * dXRatio;
-												OutVxVy.y = OutVT.v * dYRatio;
-												OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-												OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-												m_arrOutVTArray.Add(OutVT);
-												m_arrOutVxVyArray.Add(OutVxVy);
-												m_arrOutXYArray.Add(OutPoint);
-												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-											}
-										}
-										else // 此小線段會進減速區域
-										{
-											T3 = (2.0 * (m_dCurrentDistance - S1)) / (Vm + m_dVEnd);
-											dTimeTotal = T1 + T3;
-											while (dDistanceSum < S1)
-											{
-												dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-												OutVT.v += m_dAmax * dt;
-												OutVT.t += dt;
-												dt = m_dSampleTime * pow(10, -3);
-												if (dDistanceSum > S1)
-												{
-													dDistanceSum = dDistanceSum - (OutVT.t - m_dTimeStart - T1) * (OutVT.v - Vm);
-													OutVT.v = Vm - m_dAmax * (OutVT.t - m_dTimeStart - T1);
-												}
-												OutVxVy.x = OutVT.v * dXRatio;
-												OutVxVy.y = OutVT.v * dYRatio;
-												OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-												OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-												m_arrOutVTArray.Add(OutVT);
-												m_arrOutVxVyArray.Add(OutVxVy);
-												m_arrOutXYArray.Add(OutPoint);
-												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-											}
-											while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
-											{
-												dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-												OutVT.v -= m_dAmax * dt;
-												if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-												{
-													break;
-												}
-												OutVT.t += dt;
-												dt = m_dSampleTime * pow(10, -3);
-												OutVxVy.x = OutVT.v * dXRatio;
-												OutVxVy.y = OutVT.v * dYRatio;
-												OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-												OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-												m_arrOutVTArray.Add(OutVT);
-												m_arrOutVxVyArray.Add(OutVxVy);
-												m_arrOutXYArray.Add(OutPoint);
-												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-											}
-										}
-									}
-								}
-							}
-							else // 剩下的距離之速度規劃還能是梯形
-							{
-								if (m_dCurrentDistance <= S1) // 此小線段都在加速區域
-								{
-									m_dVEnd = sqrt(pow(m_dVStart, 2) + 2.0 * m_dAmax * m_dCurrentDistance);
-									if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，重算Vm
-									{
-										m_dVEnd = dNextVmax;
-										Vm = sqrt((2.0 * m_dAmax * m_dCurrentDistance + pow(m_dVStart, 2) + pow(m_dVEnd, 2)) / 2.0);
-										S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
-										T1 = 2.0 * S1 / (m_dVStart + Vm);
-										T3 = (2.0 * (m_dCurrentDistance - S1)) / (Vm + m_dVEnd);
-										dTimeTotal = T1 + T3;
-										while (dDistanceSum < S1)
-										{
-											dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v += m_dAmax * dt;
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											if (dDistanceSum > S1)
-											{
-												dDistanceSum = dDistanceSum - (OutVT.t - m_dTimeStart - T1) * (OutVT.v - Vm);
-												OutVT.v = Vm - m_dAmax * (OutVT.t - m_dTimeStart - T1);
-											}
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-										while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
-										{
-											dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v -= m_dAmax * dt;
-											if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-											{
-												break;
-											}
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-									}
-									else
-									{
-										dTimeTotal = 2.0 * m_dCurrentDistance / (m_dVStart + m_dVEnd);
-										while (dDistanceSum < S1)
-										{
-											dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v += m_dAmax * dt;
-											if (dDistanceSum >= m_dCurrentDistance || OutVT.v >= m_dVEnd)
-											{
-												break;
-											}
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-									}
-								}
-								else if (m_dCurrentDistance > S1 && m_dCurrentDistance <= (S1 + S2)) // 此小線段會到均速區域
-								{
-									m_dVEnd = m_dVmax;
-									if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，提早開始減速
-									{
-										m_dVEnd = dNextVmax;
-										S = m_dCurrentDistance;
-										S1 = (pow(m_dVmax, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
-										S3 = (pow(m_dVmax, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
-										S2 = S - S1 - S3;
-										T1 = (2.0 * S1) / (m_dVStart + m_dVmax);
-										T2 = S2 / m_dVmax;
-										T3 = (2.0 * (m_dCurrentDistance - S1 - S2)) / (m_dVmax + m_dVEnd);
-										dTimeTotal = T1 + T2 + T3;
-										while (dDistanceSum < S1)
-										{
-											dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v += m_dAmax * dt;
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											if (dDistanceSum > S1)
-											{
-												dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - m_dTimeStart - T1) * (OutVT.v - m_dVmax);
-												OutVT.v = m_dVmax;
-											}
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-										while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
-										{
-											dDistanceSum += m_dVmax * dt;
-											OutVT.v = m_dVmax;
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											if ((S - dDistanceSum) < S3)
-											{
-												OutVT.v = m_dVmax - m_dAmax * (OutVT.t - m_dTimeStart - T1 - T2);
-												dDistanceSum = dDistanceSum - 0.5 * (m_dVmax - OutVT.v) * (OutVT.t - m_dTimeStart - T1 - T2);
-											}
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-										while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
-										{
-											dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v -= m_dAmax * dt;
-											if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-											{
-												break;
-											}
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-									}
-									else
-									{
-										T1 = (2.0 * S1) / (m_dVStart + m_dVmax);
-										T2 = (m_dCurrentDistance - S1) / m_dVmax;
-										dTimeTotal = T1 + T2;
-										while (dDistanceSum < S1)
-										{
-											dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v += m_dAmax * dt;
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											if (dDistanceSum > S1)
-											{
-												dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - m_dTimeStart - T1) * (OutVT.v - m_dVmax);
-												OutVT.v = m_dVmax;
-											}
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-										while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
-										{
-											dDistanceSum += m_dVmax * dt;
-											OutVT.v = m_dVmax;
-											if (dDistanceSum >= m_dCurrentDistance)
-											{
-												break;
-											}
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-									}
-								}
-								else // 此小線段會到減速區域
-								{
-									m_dVEnd = sqrt(2.0 * m_dAmax * (S - m_dCurrentDistance));
-									if (m_dVEnd > dNextVmax) // Vend設為Vmax,next，提早開始減速
-									{
-										m_dVEnd = dNextVmax;
-										S = m_dCurrentDistance;
-										S1 = (pow(m_dVmax, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
-										S3 = (pow(m_dVmax, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
-										S2 = S - S1 - S3;
-										T1 = (2.0 * S1) / (m_dVStart + m_dVmax);
-										T2 = S2 / m_dVmax;
-										T3 = (2.0 * (m_dCurrentDistance - S1 - S2)) / (m_dVmax + m_dVEnd);
-										dTimeTotal = T1 + T2 + T3;
-										while (dDistanceSum < S1)
-										{
-											dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v += m_dAmax * dt;
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											if (dDistanceSum > S1)
-											{
-												dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - m_dTimeStart - T1) * (OutVT.v - m_dVmax);
-												OutVT.v = m_dVmax;
-											}
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-										while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
-										{
-											dDistanceSum += m_dVmax * dt;
-											OutVT.v = m_dVmax;
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											if ((S - dDistanceSum) < S3)
-											{
-												OutVT.v = m_dVmax - m_dAmax * (OutVT.t - m_dTimeStart - T1 - T2);
-												dDistanceSum = dDistanceSum - 0.5 * (m_dVmax - OutVT.v) * (OutVT.t - m_dTimeStart - T1 - T2);
-											}
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-										while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
-										{
-											dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v -= m_dAmax * dt;
-											if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-											{
-												break;
-											}
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-									}
-									else
-									{
-										T1 = (2.0 * S1) / (m_dVStart + m_dVmax);
-										T2 = S2 / m_dVmax;
-										T3 = (2.0 * (m_dCurrentDistance - S1 - S2)) / (m_dVmax + m_dVEnd);
-										dTimeTotal = T1 + T2 + T3;
-										while (dDistanceSum < S1)
-										{
-											dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v += m_dAmax * dt;
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											if (dDistanceSum > S1)
-											{
-												dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - m_dTimeStart - T1) * (OutVT.v - m_dVmax);
-												OutVT.v = m_dVmax;
-											}
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-										while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
-										{
-											dDistanceSum += m_dVmax * dt;
-											OutVT.v = m_dVmax;
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											if ((S - dDistanceSum) < S3)
-											{
-												OutVT.v = m_dVmax - m_dAmax * (OutVT.t - m_dTimeStart - T1 - T2);
-												dDistanceSum = dDistanceSum - 0.5 * (m_dVmax - OutVT.v) * (OutVT.t - m_dTimeStart - T1 - T2);
-											}
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-										while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
-										{
-											dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v -= m_dAmax * dt;
-											if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-											{
-												break;
-											}
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-									}
-								}
-							}
-						}
-						else // 沒有下一段, Vend必須為0
-						{
-							S = m_dCurrentDistance;
-							m_dVEnd = 0.0;
-							S1 = (pow(m_dVmax, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
-							S3 = (pow(m_dVmax, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
-							S2 = S - S1 - S3;
-							if (S2 <= 0.0) // 沒有均速階段, 剩下的距離之速度規劃為三角形
-							{
-								S1 = (2.0 * m_dAmax * S - pow(m_dVStart, 2)) / (4.0 * m_dAmax);
-								if (S1 < 0.0) // 只有減速
-								{
-									dTimeTotal = 2.0 * m_dCurrentDistance / (m_dVStart + m_dVEnd);
-									while (dDistanceSum < m_dCurrentDistance)
-									{
-										dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-										OutVT.v -= m_dAmax * dt;
-										if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-										{
-											break;
-										}
-										OutVT.t += dt;
-										dt = m_dSampleTime * pow(10, -3);
-										OutVxVy.x = OutVT.v * dXRatio;
-										OutVxVy.y = OutVT.v * dYRatio;
-										OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-										OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-										m_arrOutVTArray.Add(OutVT);
-										m_arrOutVxVyArray.Add(OutVxVy);
-										m_arrOutXYArray.Add(OutPoint);
-										m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-										m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-										m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-										m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-										m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-										m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-										m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-										m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-										m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-									}
-								}
-								else // 加速到Vm再減速
-								{
-									Vm = sqrt((2.0 * m_dAmax * S + pow(m_dVStart, 2)) / 2.0);
-									S1 = (pow(Vm, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
-									S3 = (pow(Vm, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
-									S2 = 0.0;
-									T1 = 2.0 * S1 / (m_dVStart + Vm);
-									T2 = 0.0;
-									T3 = 2.0 * S3 / (m_dVEnd + Vm);
-									dTimeTotal = T1 + T2 + T3;
-									if (Vm > m_dVmax)
-									{
-										MessageBox(_T("Vm 不可大於 Vmax, 計算結果錯誤"));
-									}
-									else // 三角形
-									{
-										while (dDistanceSum < S1)
-										{
-											dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v += m_dAmax * dt;
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											if (dDistanceSum > S1)
-											{
-												dDistanceSum = dDistanceSum - (OutVT.t - m_dTimeStart - T1) * (OutVT.v - Vm);
-												OutVT.v = Vm - m_dAmax * (OutVT.t - m_dTimeStart - T1);
-											}
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-										while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
-										{
-											dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-											OutVT.v -= m_dAmax * dt;
-											if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-											{
-												break;
-											}
-											OutVT.t += dt;
-											dt = m_dSampleTime * pow(10, -3);
-											OutVxVy.x = OutVT.v * dXRatio;
-											OutVxVy.y = OutVT.v * dYRatio;
-											OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-											OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-											m_arrOutVTArray.Add(OutVT);
-											m_arrOutVxVyArray.Add(OutVxVy);
-											m_arrOutXYArray.Add(OutPoint);
-											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-										}
-									}
-								}
-							}
-							else // 剩下的距離之速度規劃還能是梯形
-							{
-								T1 = 2.0 * S1 / (m_dVStart + m_dVmax);
-								T2 = S2 / m_dVmax;
-								T3 = 2.0 * S3 / (m_dVEnd + m_dVmax);
-								dTimeTotal = T1 + T2 + T3;
-								while (dDistanceSum < S1)
-								{
-									dDistanceSum += OutVT.v * dt + 0.5 * m_dAmax * pow(dt, 2);
-									OutVT.v += m_dAmax * dt;
-									OutVT.t += dt;
-									dt = m_dSampleTime * pow(10, -3);
-									if (dDistanceSum > S1)
-									{
-										dDistanceSum = dDistanceSum - 0.5 * (OutVT.t - m_dTimeStart - T1) * (OutVT.v - m_dVmax);
-										OutVT.v = m_dVmax;
-									}
-									OutVxVy.x = OutVT.v * dXRatio;
-									OutVxVy.y = OutVT.v * dYRatio;
-									OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-									OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-									m_arrOutVTArray.Add(OutVT);
-									m_arrOutVxVyArray.Add(OutVxVy);
-									m_arrOutXYArray.Add(OutPoint);
-									m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-									m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-									m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-									m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-									m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-									m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-									m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-									m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-									m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-								}
-								while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
-								{
-									dDistanceSum += m_dVmax * dt;
-									OutVT.v = m_dVmax;
-									OutVT.t += dt;
-									dt = m_dSampleTime * pow(10, -3);
-									if ((S - dDistanceSum) < S3)
-									{
-										OutVT.v = m_dVmax - m_dAmax * (OutVT.t - m_dTimeStart - T1 - T2);
-										dDistanceSum = dDistanceSum - 0.5 * (m_dVmax - OutVT.v) * (OutVT.t - m_dTimeStart - T1 - T2);
-									}
-									OutVxVy.x = OutVT.v * dXRatio;
-									OutVxVy.y = OutVT.v * dYRatio;
-									OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-									OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-									m_arrOutVTArray.Add(OutVT);
-									m_arrOutVxVyArray.Add(OutVxVy);
-									m_arrOutXYArray.Add(OutPoint);
-									m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-									m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-									m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-									m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-									m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-									m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-									m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-									m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-									m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-								}
-								while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
-								{
-									dDistanceSum += OutVT.v * dt - 0.5 * m_dAmax * pow(dt, 2);
-									OutVT.v -= m_dAmax * dt;
-									if (dDistanceSum >= m_dCurrentDistance || OutVT.v <= m_dVEnd)
-									{
-										break;
-									}
-									OutVT.t += dt;
-									dt = m_dSampleTime * pow(10, -3);
-									OutVxVy.x = OutVT.v * dXRatio;
-									OutVxVy.y = OutVT.v * dYRatio;
-									OutPoint.x = dDistanceSum * dXRatio + m_arrPathPointArray.GetAt(i).x;
-									OutPoint.y = dDistanceSum * dYRatio + m_arrPathPointArray.GetAt(i).y;
-									m_arrOutVTArray.Add(OutVT);
-									m_arrOutVxVyArray.Add(OutVxVy);
-									m_arrOutXYArray.Add(OutPoint);
-									m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-									m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-									m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-									m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-									m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-									m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-									m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-									m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-									m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-								}
-							}
-						}
-
-						// 輸出此線段最後一點的參數
-						if (OutVT.t + dt == m_dTimeStart + dTimeTotal)
-						{
-							OutVT.v = m_dVEnd; // 終止速度
-							OutVT.t = m_dTimeStart + dTimeTotal; // 終止時間
-							OutVxVy.x = OutVT.v * dXRatio;
-							OutVxVy.y = OutVT.v * dYRatio;
-							OutPoint.x = m_arrPathPointArray.GetAt(i + 1).x;
-							OutPoint.y = m_arrPathPointArray.GetAt(i + 1).y;
-							m_arrOutVTArray.Add(OutVT);
-							m_arrOutVxVyArray.Add(OutVxVy);
-							m_arrOutXYArray.Add(OutPoint);
-							m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
-							m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
-							m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
-							m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
-							m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
-							m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
-							m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
-							m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
-							m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
-						}
-						else
-						{
-							dt = OutVT.t + dt - (m_dTimeStart + dTimeTotal);
-							OutVT.v = m_dVEnd; // 終止速度
-							OutVT.t = m_dTimeStart + dTimeTotal; // 終止時間
-						}
-
-
-						m_dTimeStart += dTimeTotal;
-						m_dVStart = m_dVEnd;
-						dDistanceNow += m_dCurrentDistance;
-					}
-
+					// 速度規劃
+					GetResultPath();
+					
 					// 輸出此線段結果
 					for (int i = 0; i < m_arrOutXYArray.GetSize(); i++)
 					{
@@ -2201,7 +1819,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					// 計算完成, 更新參數
 					m_arrOutXYArray.RemoveAll();
 					m_arrOutVTArray.RemoveAll();
-					m_arrOutVxVyArray.RemoveAll();
+					
 					i = m_iCmdFlag;
 					m_dBeginPoint[0] = m_arrPathPointArray[m_arrPathPointArray.GetSize() - 1].x;
 					m_dBeginPoint[1] = m_arrPathPointArray[m_arrPathPointArray.GetSize() - 1].y;
@@ -2221,7 +1839,6 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		// close file
 		m_arrOutXYArray.RemoveAll();
 		m_arrOutVTArray.RemoveAll();
-		m_arrOutVxVyArray.RemoveAll();
 		m_arrPathPointArray.RemoveAll();
 		m_arrPathVAMaxArray.RemoveAll();
 		fclose(OutFile);
@@ -2369,6 +1986,9 @@ void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
 				fclose(fpResult);
 				m_dcMem.DeleteDC();
 				m_bmp.DeleteObject();
+
+				m_bSimulationFlag = FALSE;
+				GetDlgItem(IDC_BUTTON_SIMULATION)->SetWindowTextW(_T("simulation"));
 			}
 		}
 		dc.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &m_dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);

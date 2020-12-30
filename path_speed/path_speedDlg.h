@@ -90,6 +90,7 @@ private:
 	void PlotChart(int PlotFlag);
 	// calculate
 	double m_dTimeStart;
+	double m_dt;
 	double m_dBeginPoint[2], m_dEndPoint[2], m_dSpeed[2], m_dAcc[2];
 	int m_iCmdFlag, m_iCurrentCmd, m_iNextCmd;
 	double m_dVStart, m_dVEnd, m_dVmax, m_dAmax;
@@ -98,10 +99,16 @@ private:
 	double m_dMaxOutX, m_dMaxOutY, m_dMaxOutV, m_dMinOutX, m_dMinOutY, m_dMaxOutVx, m_dMaxOutVy, m_dMinOutVx, m_dMinOutVy, m_dMaxOutA, m_dMinOutA;
 	CMD m_CurrentCmd, m_NextCmd;
 	POINTXY m_BeginPoint, m_CurrentPoint, m_NextPoint;
+	POINTXY m_OutPoint, m_OutVxVy;
+	SPEEDVT m_OutVT;
+	PARAMS_VA_MAX m_VAmax;
 	void GetCurrentCMDinfo(int i);
 	double GetThetaPath(double dDirection, double dThetaStart, double dThetaEnd);
 	void CheckPathAngle();
 	void GetPathDistance();
+	void GetResultMaxMin();
+	void GetResultPath();
+	void AddOutData(double dXRatio, double dYRatio, double dDistanceSum, int i);
 public:
 	double m_dSampleTime, m_dThetaMax, m_dPlotXmin, m_dPlotXmax, m_dPlotYmin, m_dPlotYmax; // 系統參數
 	bool m_bPlotFlag, m_bZoomFlag, m_bSimulationFlag, m_bPlotVflag, m_bPlotAflag;
@@ -133,7 +140,7 @@ public:
 	clock_t m_tSimuStart, m_tSimuEnd;
 	CString m_cInputPathName, m_cOutputPathName, m_cOutTmpPathName, m_cPlotPathName, m_cSimuTime, m_strPlotXlabel, m_strPlotYlabel;
 	CArray<CMD, CMD&> m_arrCmdArray;
-	CArray<POINTXY, POINTXY&> m_arrOutXYArray, m_arrOutVxVyArray, m_arrPathPointArray;
+	CArray<POINTXY, POINTXY&> m_arrOutXYArray, m_arrPathPointArray;
 	CArray<SPEEDVT, SPEEDVT&> m_arrOutVTArray;
 	CArray<PARAMS_VA_MAX, PARAMS_VA_MAX&> m_arrPathVAMaxArray;
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
