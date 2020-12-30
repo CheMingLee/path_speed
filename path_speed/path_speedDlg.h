@@ -94,9 +94,14 @@ private:
 	int m_iCmdFlag, m_iCurrentCmd, m_iNextCmd;
 	double m_dVStart, m_dVEnd, m_dVmax, m_dAmax;
 	double m_dCurrentDistance, m_dNextDistance;
+	double m_dDistance;
+	double m_dMaxOutX, m_dMaxOutY, m_dMaxOutV, m_dMinOutX, m_dMinOutY, m_dMaxOutVx, m_dMaxOutVy, m_dMinOutVx, m_dMinOutVy, m_dMaxOutA, m_dMinOutA;
 	CMD m_CurrentCmd, m_NextCmd;
 	POINTXY m_BeginPoint, m_CurrentPoint, m_NextPoint;
 	void GetCurrentCMDinfo(int i);
+	double GetThetaPath(double dDirection, double dThetaStart, double dThetaEnd);
+	void CheckPathAngle();
+	void GetPathDistance();
 public:
 	double m_dSampleTime, m_dThetaMax, m_dPlotXmin, m_dPlotXmax, m_dPlotYmin, m_dPlotYmax; // 系統參數
 	bool m_bPlotFlag, m_bZoomFlag, m_bSimulationFlag, m_bPlotVflag, m_bPlotAflag;

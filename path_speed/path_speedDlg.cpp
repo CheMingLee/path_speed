@@ -138,7 +138,18 @@ BOOL CpathspeedDlg::OnInitDialog()
 	m_cInputPathName = _T("");
 	SelectFile(); // defult outputfile and tmp file path
 	m_cPlotPathName = _T("");
-	
+	m_dDistance = 0.0; // 總移動距離, Vs=0, Vend =0, L=L1+L2+...+Ln
+	m_dMaxOutX = 0.0;
+	m_dMaxOutY = 0.0;
+	m_dMaxOutV = 0.0;
+	m_dMinOutX = 0.0;
+	m_dMinOutY = 0.0;
+	m_dMaxOutVx = 0.0;
+	m_dMaxOutVy = 0.0;
+	m_dMinOutVx = 0.0;
+	m_dMinOutVy = 0.0;
+	m_dMaxOutA = 0.0;
+	m_dMinOutA = 0.0;
 	return TRUE;  // 傳回 TRUE，除非您對控制項設定焦點
 }
 
@@ -746,14 +757,51 @@ void CpathspeedDlg::SelectFile()
 }
 
 
+double CpathspeedDlg::GetThetaPath(double Direction, double ThetaStart, double ThetaEnd)
+{
+	double ThetaPath;
+	
+	if (Direction >= 0.0) // 逆時針
+	{
+		if (ThetaStart == ThetaEnd) // 逆時針完整圓
+		{
+			ThetaPath = 2.0 * PI;
+		}
+		else
+		{
+			ThetaPath = ThetaEnd - ThetaStart;
+			if (ThetaPath < 0.0)
+			{
+				ThetaPath = ThetaPath + 2.0 * PI;
+			}
+
+		}
+	}
+	else
+	{
+		if (ThetaStart == ThetaEnd) // 順時針完整圓
+		{
+			ThetaPath = 2.0 * PI;
+		}
+		else
+		{
+			ThetaPath = ThetaStart - ThetaEnd;
+			if (ThetaPath < 0.0)
+			{
+				ThetaPath = ThetaPath + 2.0 * PI;
+			}
+		}
+	}
+
+	return ThetaPath;
+}
+
+
 void CpathspeedDlg::CalArcPoint(POINTXY BeginP, CMD Cmd, double speed[2], double acc[2])
 {
 	if (Cmd.m_iID == ARCXY || Cmd.m_iID == FARCXY)
 	{
-		POINTXY ArcEndPoint;
-		POINTXY ArcCenterPoint;
-		POINTXY ArcPoint;
-
+		POINTXY ArcEndPoint, ArcCenterPoint, ArcPoint;
 		double dDirection, dRadius, dCosThetaStart, dSinThetaStart, dCosThetaEnd, dSinThetaEnd, dThetaStart, dThetaEnd, dThetaPath;
 		double dTheta = 1.0 * PI / 180.0;
 
@@ -780,19 +828,7 @@ void CpathspeedDlg::CalArcPoint(POINTXY BeginP, CMD Cmd, double speed[2], double
 			dThetaEnd = CheckTheta(dCosThetaEnd, dSinThetaEnd, dThetaEnd); // 轉為[0, 2*PI]
 			if (dDirection >= 0.0) // 逆時針
 			{
-				if (dThetaStart == dThetaEnd) // 逆時針完整圓
-				{
-					dThetaPath = 2.0 * PI;
-				}
-				else
-				{
-					dThetaPath = dThetaEnd - dThetaStart;
-					if (dThetaPath < 0.0)
-					{
-						dThetaPath = dThetaPath + 2.0 * PI;
-					}
-
-				}
+				dThetaPath = GetThetaPath(dDirection, dThetaStart, dThetaEnd);
 
 				while (dTheta < dThetaPath)
 				{
@@ -810,18 +846,8 @@ void CpathspeedDlg::CalArcPoint(POINTXY BeginP, CMD Cmd, double speed[2], double
 			}
 			else // 順時針
 			{
-				if (dThetaStart == dThetaEnd) // 順時針完整圓
-				{
-					dThetaPath = 2.0 * PI;
-				}
-				else
-				{
-					dThetaPath = dThetaStart - dThetaEnd;
-					if (dThetaPath < 0.0)
-					{
-						dThetaPath = dThetaPath + 2.0 * PI;
-					}
-				}
+				dThetaPath = GetThetaPath(dDirection, dThetaStart, dThetaEnd);
+
 				while (dTheta < dThetaPath)
 				{
 					ArcPoint.x = ArcCenterPoint.x + dRadius * cos(dThetaStart - dTheta);
@@ -903,6 +929,146 @@ void CpathspeedDlg::GetCurrentCMDinfo(int i)
 }
 
 
+void CpathspeedDlg::CheckPathAngle()
+{
+	double dCosTheta;
+
+	// 讀下一條命令，判斷夾角
+	while (m_arrCmdArray[m_iCmdFlag + 1].m_iID == LINEXY || m_arrCmdArray[m_iCmdFlag + 1].m_iID == FLINEXY || m_arrCmdArray[m_iCmdFlag + 1].m_iID == ARCXY || m_arrCmdArray[m_iCmdFlag + 1].m_iID == FARCXY)
+	{
+		m_NextCmd = m_arrCmdArray[m_iCmdFlag + 1];
+		m_iNextCmd = m_NextCmd.m_iID;
+		m_NextPoint.x = m_NextCmd.m_dParams[0];
+		m_NextPoint.y = m_NextCmd.m_dParams[1];
+		m_dNextDistance = sqrt(pow((m_NextPoint.x - m_CurrentPoint.x), 2) + pow((m_NextPoint.y - m_CurrentPoint.y), 2));
+		if (m_dNextDistance == 0.0)
+		{
+			if (m_iNextCmd == LINEXY || m_iNextCmd == FLINEXY)
+			{
+				m_iCmdFlag += 1;
+			}
+			else // Arc
+			{
+				if (m_NextPoint.x == m_NextCmd.m_dParams[3] && m_NextPoint.y == m_NextCmd.m_dParams[4]) // 半徑為0
+				{
+					m_iCmdFlag += 1;
+				}
+				else
+				{
+					m_BeginPoint.x = m_CurrentPoint.x;
+					m_BeginPoint.y = m_CurrentPoint.y;
+					m_CurrentPoint.x = m_NextPoint.x;
+					m_CurrentPoint.y = m_NextPoint.y;
+
+					CalArcPoint(m_BeginPoint, m_NextCmd, m_dSpeed, m_dAcc);
+					m_arrPathPointArray.Add(m_NextPoint);
+					SelectPathVAmax(m_iNextCmd, m_dSpeed, m_dAcc);
+					m_iCmdFlag += 1;
+				}
+			}
+		}
+		else
+		{
+			if (m_iNextCmd == ARCXY || m_iNextCmd == FARCXY)
+			{
+				POINTXY ArcEndPoint, ArcCenterPoint, ArcPoint;
+
+				double dDirection, dRadius, dCosThetaStart, dSinThetaStart, dCosThetaEnd, dSinThetaEnd, dThetaStart, dThetaEnd, dThetaPath;
+				double dTheta = 1.0 * PI / 180.0;
+
+				ArcEndPoint.x = m_NextCmd.m_dParams[0];
+				ArcEndPoint.y = m_NextCmd.m_dParams[1];
+				ArcCenterPoint.x = m_NextCmd.m_dParams[2];
+				ArcCenterPoint.y = m_NextCmd.m_dParams[3];
+				dDirection = m_NextCmd.m_dParams[4];
+				dRadius = sqrt(pow(ArcEndPoint.x - ArcCenterPoint.x, 2) + pow(ArcEndPoint.y - ArcCenterPoint.y, 2));
+				if (dRadius == 0.0)
+				{
+					break;
+				}
+				else
+				{
+					dCosThetaStart = (m_BeginPoint.x - ArcCenterPoint.x) / dRadius;
+					dSinThetaStart = (m_BeginPoint.y - ArcCenterPoint.y) / dRadius;
+					dThetaStart = acos((m_BeginPoint.x - ArcCenterPoint.x) / dRadius); // 範圍[0, PI]
+					dThetaStart = CheckTheta(dCosThetaStart, dSinThetaStart, dThetaStart); // 轉為[0, 2*PI]
+					dCosThetaEnd = (ArcEndPoint.x - ArcCenterPoint.x) / dRadius;
+					dSinThetaEnd = (ArcEndPoint.y - ArcCenterPoint.y) / dRadius;
+					dThetaEnd = acos((ArcEndPoint.x - ArcCenterPoint.x) / dRadius); // 範圍[0, PI]
+					dThetaEnd = CheckTheta(dCosThetaEnd, dSinThetaEnd, dThetaEnd); // 轉為[0, 2*PI]
+
+					dThetaPath = GetThetaPath(dDirection, dThetaStart, dThetaEnd);
+					if (dThetaPath < dTheta)
+					{
+						dTheta = dThetaPath;
+					}
+
+					if (dDirection >= 0.0) // 逆時針
+					{
+						ArcPoint.x = ArcCenterPoint.x + dRadius * cos(dThetaStart + dTheta);
+						ArcPoint.y = ArcCenterPoint.y + dRadius * sin(dThetaStart + dTheta);
+					}
+					else // 順時針
+					{
+						ArcPoint.x = ArcCenterPoint.x + dRadius * cos(dThetaStart - dTheta);
+						ArcPoint.y = ArcCenterPoint.y + dRadius * sin(dThetaStart - dTheta);
+					}
+				}
+
+				m_NextPoint.x = ArcPoint.x;
+				m_NextPoint.y = ArcPoint.y;
+			}
+
+			dCosTheta = ((m_CurrentPoint.x - m_BeginPoint.x) * (m_NextPoint.x - m_CurrentPoint.x) + (m_CurrentPoint.y - m_BeginPoint.y) * (m_NextPoint.y - m_CurrentPoint.y)) / (m_dCurrentDistance * m_dNextDistance);
+
+			if (dCosTheta > cos(m_dThetaMax * PI / 180.0))
+			{
+				m_NextPoint.x = m_NextCmd.m_dParams[0];
+				m_NextPoint.y = m_NextCmd.m_dParams[1];
+				m_BeginPoint.x = m_CurrentPoint.x;
+				m_BeginPoint.y = m_CurrentPoint.y;
+				m_CurrentPoint.x = m_NextPoint.x;
+				m_CurrentPoint.y = m_NextPoint.y;
+				// 更新終點
+				if (m_iNextCmd == LINEXY || m_iNextCmd == FLINEXY)
+				{
+					m_arrPathPointArray.Add(m_NextPoint);
+					SelectPathVAmax(m_iNextCmd, m_dSpeed, m_dAcc);
+				}
+				else // Arc
+				{
+					if (m_NextPoint.x == m_NextCmd.m_dParams[3] && m_NextPoint.y == m_NextCmd.m_dParams[4]) // 半徑為0
+					{
+						MessageBox(_T("Arc起點終點不同, 半徑不可為0"));
+						break;
+					}
+					else
+					{
+						CalArcPoint(m_BeginPoint, m_NextCmd, m_dSpeed, m_dAcc);
+						m_arrPathPointArray.Add(m_NextPoint);
+						SelectPathVAmax(m_iNextCmd, m_dSpeed, m_dAcc);
+					}
+				}
+				m_iCmdFlag += 1;
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+}
+
+
+void CpathspeedDlg::GetPathDistance()
+{
+	for (int i = 0; i < m_arrPathPointArray.GetSize() - 1; i++)
+	{
+		m_dDistance += sqrt(pow((m_arrPathPointArray.GetAt(i + 1).x - m_arrPathPointArray.GetAt(i).x), 2) + pow((m_arrPathPointArray.GetAt(i + 1).y - m_arrPathPointArray.GetAt(i).y), 2));
+	}
+}
+
+
 void CpathspeedDlg::OnBnClickedButtonCaculate()
 {
 	UpdateData(TRUE);
@@ -925,26 +1091,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 		POINTXY OutPoint, OutVxVy;
 		SPEEDVT OutVT;
 
-		POINTXY ArcCenterPoint;
-		double dDirection;
-		double dCosTheta;
 
 		PARAMS_VA_MAX VAmax;
 
 		m_dTimeStart = 0.0;
 		m_dVStart = 0.0;
 
-		double dMaxOutX = 0;
-		double dMaxOutY = 0;
-		double dMaxOutV = 0;
-		double dMinOutX = 0;
-		double dMinOutY = 0;
-		double dMaxOutVx = 0;
-		double dMaxOutVy = 0;
-		double dMinOutVx = 0;
-		double dMinOutVy = 0;
-		double dMaxOutA = 0;
-		double dMinOutA = 0;
+		
+
+		
 
 		double dt = m_dSampleTime * pow(10, -3);
 
@@ -964,10 +1119,10 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					m_dBeginPoint[1] = m_CurrentCmd.m_dParams[1];
 					OutPoint.x = m_dBeginPoint[0];
 					OutPoint.y = m_dBeginPoint[1];
-					dMaxOutX = OutPoint.x;
-					dMaxOutY = OutPoint.y;
-					dMinOutX = OutPoint.x;
-					dMinOutY = OutPoint.y;
+					m_dMaxOutX = OutPoint.x;
+					m_dMaxOutY = OutPoint.y;
+					m_dMinOutX = OutPoint.x;
+					m_dMinOutY = OutPoint.y;
 					OutVT.t = m_dTimeStart; // 起始時間為0
 					OutVT.v = m_dVStart; // 起始速度為0
 					OutVxVy.x = 0;
@@ -1004,11 +1159,12 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					m_iCmdFlag = i;
 					if (m_iCmdFlag < 3)
 					{
-						MessageBox(_T("條件不足"));
+						MessageBox(_T("條件不足，直接輸出已計算結果"));
 						i = m_arrCmdArray.GetSize();
 						break;
 					}
 
+					// 讀這條命令，取得這條命令的資訊，加入線段起終點
 					GetCurrentCMDinfo(m_iCmdFlag);
 
 					if (m_arrPathPointArray.IsEmpty())
@@ -1016,131 +1172,8 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 						break;
 					}
 
-					// 讀下一條命令，判斷夾角
-					while (m_arrCmdArray[m_iCmdFlag + 1].m_iID == LINEXY || m_arrCmdArray[m_iCmdFlag + 1].m_iID == FLINEXY || m_arrCmdArray[m_iCmdFlag + 1].m_iID == ARCXY || m_arrCmdArray[m_iCmdFlag + 1].m_iID == FARCXY)
-					{
-						m_NextCmd = m_arrCmdArray[m_iCmdFlag + 1];
-						m_iNextCmd = m_NextCmd.m_iID;
-						m_NextPoint.x = m_NextCmd.m_dParams[0];
-						m_NextPoint.y = m_NextCmd.m_dParams[1];
-						m_dNextDistance = sqrt(pow((m_NextPoint.x - m_CurrentPoint.x), 2) + pow((m_NextPoint.y - m_CurrentPoint.y), 2));
-						if (m_dNextDistance == 0.0)
-						{
-							if (m_iNextCmd == LINEXY || m_iNextCmd == FLINEXY)
-							{
-								m_iCmdFlag += 1;
-							}
-							else // Arc
-							{
-								if (m_NextPoint.x == m_NextCmd.m_dParams[3] && m_NextPoint.y == m_NextCmd.m_dParams[4]) // 半徑為0
-								{
-									m_iCmdFlag += 1;
-								}
-								else
-								{
-									m_BeginPoint.x = m_CurrentPoint.x;
-									m_BeginPoint.y = m_CurrentPoint.y;
-									m_CurrentPoint.x = m_NextPoint.x;
-									m_CurrentPoint.y = m_NextPoint.y;
-
-									CalArcPoint(m_BeginPoint, m_NextCmd, m_dSpeed, m_dAcc);
-									m_arrPathPointArray.Add(m_NextPoint);
-									SelectPathVAmax(m_iNextCmd, m_dSpeed, m_dAcc);
-									m_iCmdFlag += 1;
-								}
-							}
-						}
-						else
-						{
-							if (m_iNextCmd == ARCXY || m_iNextCmd == FARCXY)
-							{
-								POINTXY ArcEndPoint, ArcCenterPoint, ArcPoint;
-
-								double dDirection;
-								double dRadius;
-								double dCosThetaStart;
-								double dSinThetaStart;
-								double dCosThetaEnd;
-								double dSinThetaEnd;
-								double dThetaStart;
-								double dThetaEnd;
-								double dThetaPath;
-								double dTheta = 1.0 * PI / 180.0;
-
-								ArcEndPoint.x = m_NextCmd.m_dParams[0];
-								ArcEndPoint.y = m_NextCmd.m_dParams[1];
-								ArcCenterPoint.x = m_NextCmd.m_dParams[2];
-								ArcCenterPoint.y = m_NextCmd.m_dParams[3];
-								dDirection = m_NextCmd.m_dParams[4];
-								dRadius = sqrt(pow(ArcEndPoint.x - ArcCenterPoint.x, 2) + pow(ArcEndPoint.y - ArcCenterPoint.y, 2));
-								if (dRadius == 0.0)
-								{
-									break;
-								}
-								else
-								{
-									dCosThetaStart = (m_BeginPoint.x - ArcCenterPoint.x) / dRadius;
-									dSinThetaStart = (m_BeginPoint.y - ArcCenterPoint.y) / dRadius;
-									dThetaStart = acos((m_BeginPoint.x - ArcCenterPoint.x) / dRadius); // 範圍[0, PI]
-									dThetaStart = CheckTheta(dCosThetaStart, dSinThetaStart, dThetaStart); // 轉為[0, 2*PI]
-									dCosThetaEnd = (ArcEndPoint.x - ArcCenterPoint.x) / dRadius;
-									dSinThetaEnd = (ArcEndPoint.y - ArcCenterPoint.y) / dRadius;
-									dThetaEnd = acos((ArcEndPoint.x - ArcCenterPoint.x) / dRadius); // 範圍[0, PI]
-									dThetaEnd = CheckTheta(dCosThetaEnd, dSinThetaEnd, dThetaEnd); // 轉為[0, 2*PI]
-									if (dDirection >= 0.0) // 逆時針
-									{
-										ArcPoint.x = ArcCenterPoint.x + dRadius * cos(dThetaStart + dTheta);
-										ArcPoint.y = ArcCenterPoint.y + dRadius * sin(dThetaStart + dTheta);
-									}
-									else // 順時針
-									{
-										ArcPoint.x = ArcCenterPoint.x + dRadius * cos(dThetaStart - dTheta);
-										ArcPoint.y = ArcCenterPoint.y + dRadius * sin(dThetaStart - dTheta);
-									}
-								}
-
-								m_NextPoint.x = ArcPoint.x;
-								m_NextPoint.y = ArcPoint.y;
-							}
-
-							dCosTheta = ((m_CurrentPoint.x - m_BeginPoint.x) * (m_NextPoint.x - m_CurrentPoint.x) + (m_CurrentPoint.y - m_BeginPoint.y) * (m_NextPoint.y - m_CurrentPoint.y)) / (m_dCurrentDistance * m_dNextDistance);
-
-							if (dCosTheta > cos(m_dThetaMax * PI / 180.0))
-							{
-								m_NextPoint.x = m_NextCmd.m_dParams[0];
-								m_NextPoint.y = m_NextCmd.m_dParams[1];
-								m_BeginPoint.x = m_CurrentPoint.x;
-								m_BeginPoint.y = m_CurrentPoint.y;
-								m_CurrentPoint.x = m_NextPoint.x;
-								m_CurrentPoint.y = m_NextPoint.y;
-								// 更新終點
-								if (m_iNextCmd == LINEXY || m_iNextCmd == FLINEXY)
-								{
-									m_arrPathPointArray.Add(m_NextPoint);
-									SelectPathVAmax(m_iNextCmd, m_dSpeed, m_dAcc);
-								}
-								else // Arc
-								{
-									if (m_NextPoint.x == m_NextCmd.m_dParams[3] && m_NextPoint.y == m_NextCmd.m_dParams[4]) // 半徑為0
-									{
-										MessageBox(_T("Arc起點終點不同, 半徑不可為0"));
-										break;
-									}
-									else
-									{
-										CalArcPoint(m_BeginPoint, m_NextCmd, m_dSpeed, m_dAcc);
-										m_arrPathPointArray.Add(m_NextPoint);
-										SelectPathVAmax(m_iNextCmd, m_dSpeed, m_dAcc);
-									}
-								}
-								m_iCmdFlag += 1;
-							}
-							else
-							{
-								break;
-							}
-						}
-					}
+					// 讀下一條命令，判斷夾角，符合就加入線段
+					CheckPathAngle();
 
 					// 線段結束, Vend為0
 					VAmax.m_dVmax = 0.0;
@@ -1148,11 +1181,8 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					m_arrPathVAMaxArray.Add(VAmax);
 
 					// 計算此段總距離
-					double dDistance = 0.0; // 總移動距離, Vs=0, Vend =0, L=L1+L2+...+Ln
-					for (int i = 0; i < m_arrPathPointArray.GetSize() - 1; i++)
-					{
-						dDistance += sqrt(pow((m_arrPathPointArray.GetAt(i + 1).x - m_arrPathPointArray.GetAt(i).x), 2) + pow((m_arrPathPointArray.GetAt(i + 1).y - m_arrPathPointArray.GetAt(i).y), 2));
-					}
+					GetPathDistance();
+					
 
 					// 開始計算線段
 					double dTimeTotal = 0.0; // 總時間
@@ -1185,8 +1215,8 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 						m_dVmax = m_arrPathVAMaxArray.GetAt(i).m_dVmax;
 						m_dAmax = m_arrPathVAMaxArray.GetAt(i).m_dAmax;
 
-						dMaxOutA = CheckMax(dMaxOutA, m_dAmax);
-						dMinOutA = -dMaxOutA;
+						m_dMaxOutA = CheckMax(m_dMaxOutA, m_dAmax);
+						m_dMinOutA = -m_dMaxOutA;
 
 						dNextVmax = m_arrPathVAMaxArray.GetAt(i + 1).m_dVmax;
 
@@ -1194,7 +1224,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 
 						if (dNextVmax != 0.0) // 還有下一段, 因此 Vend != 0
 						{
-							S = dDistance - dDistanceNow;
+							S = m_dDistance - dDistanceNow;
 							m_dVEnd = 0.0;
 							S1 = (pow(m_dVmax, 2) - pow(m_dVStart, 2)) / (2.0 * m_dAmax);
 							S3 = (pow(m_dVmax, 2) - pow(m_dVEnd, 2)) / (2.0 * m_dAmax);
@@ -1223,15 +1253,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										m_arrOutVTArray.Add(OutVT);
 										m_arrOutVxVyArray.Add(OutVxVy);
 										m_arrOutXYArray.Add(OutPoint);
-										dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+										m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+										m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+										m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+										m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+										m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+										m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+										m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+										m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+										m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 									}
 								}
 								else // 加速到Vm再減速
@@ -1268,15 +1298,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												m_arrOutVTArray.Add(OutVT);
 												m_arrOutVxVyArray.Add(OutVxVy);
 												m_arrOutXYArray.Add(OutPoint);
-												dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-												dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-												dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-												dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-												dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-												dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-												dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-												dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-												dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 											}
 											while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
 											{
@@ -1295,15 +1325,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												m_arrOutVTArray.Add(OutVT);
 												m_arrOutVxVyArray.Add(OutVxVy);
 												m_arrOutXYArray.Add(OutPoint);
-												dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-												dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-												dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-												dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-												dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-												dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-												dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-												dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-												dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 											}
 										}
 										else // 此小線段都在加速區域
@@ -1326,15 +1356,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												m_arrOutVTArray.Add(OutVT);
 												m_arrOutVxVyArray.Add(OutVxVy);
 												m_arrOutXYArray.Add(OutPoint);
-												dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-												dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-												dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-												dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-												dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-												dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-												dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-												dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-												dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 											}
 										}
 									}
@@ -1367,15 +1397,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												m_arrOutVTArray.Add(OutVT);
 												m_arrOutVxVyArray.Add(OutVxVy);
 												m_arrOutXYArray.Add(OutPoint);
-												dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-												dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-												dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-												dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-												dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-												dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-												dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-												dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-												dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 											}
 											while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
 											{
@@ -1394,15 +1424,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												m_arrOutVTArray.Add(OutVT);
 												m_arrOutVxVyArray.Add(OutVxVy);
 												m_arrOutXYArray.Add(OutPoint);
-												dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-												dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-												dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-												dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-												dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-												dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-												dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-												dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-												dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 											}
 										}
 										else // 此小線段會進減速區域
@@ -1427,15 +1457,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												m_arrOutVTArray.Add(OutVT);
 												m_arrOutVxVyArray.Add(OutVxVy);
 												m_arrOutXYArray.Add(OutPoint);
-												dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-												dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-												dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-												dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-												dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-												dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-												dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-												dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-												dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 											}
 											while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
 											{
@@ -1454,15 +1484,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 												m_arrOutVTArray.Add(OutVT);
 												m_arrOutVxVyArray.Add(OutVxVy);
 												m_arrOutXYArray.Add(OutPoint);
-												dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-												dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-												dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-												dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-												dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-												dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-												dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-												dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-												dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+												m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+												m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+												m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+												m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+												m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+												m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+												m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+												m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+												m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 											}
 										}
 									}
@@ -1499,15 +1529,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
 										{
@@ -1526,15 +1556,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 									}
 									else
@@ -1557,15 +1587,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 									}
 								}
@@ -1601,15 +1631,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
 										{
@@ -1629,15 +1659,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
 										{
@@ -1656,15 +1686,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 									}
 									else
@@ -1690,15 +1720,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
 										{
@@ -1717,15 +1747,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 									}
 								}
@@ -1761,15 +1791,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
 										{
@@ -1789,15 +1819,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
 										{
@@ -1816,15 +1846,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 									}
 									else
@@ -1851,15 +1881,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
 										{
@@ -1879,15 +1909,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
 										{
@@ -1906,15 +1936,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 									}
 								}
@@ -1950,15 +1980,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 										m_arrOutVTArray.Add(OutVT);
 										m_arrOutVxVyArray.Add(OutVxVy);
 										m_arrOutXYArray.Add(OutPoint);
-										dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-										dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-										dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-										dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-										dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-										dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-										dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-										dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-										dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+										m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+										m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+										m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+										m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+										m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+										m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+										m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+										m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+										m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 									}
 								}
 								else // 加速到Vm再減速
@@ -1995,15 +2025,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 										while (dDistanceSum >= S1 && dDistanceSum < m_dCurrentDistance)
 										{
@@ -2022,15 +2052,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 											m_arrOutVTArray.Add(OutVT);
 											m_arrOutVxVyArray.Add(OutVxVy);
 											m_arrOutXYArray.Add(OutPoint);
-											dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-											dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-											dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-											dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-											dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-											dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-											dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-											dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-											dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+											m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+											m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+											m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+											m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+											m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+											m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+											m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+											m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+											m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 										}
 									}
 								}
@@ -2059,15 +2089,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 									m_arrOutVTArray.Add(OutVT);
 									m_arrOutVxVyArray.Add(OutVxVy);
 									m_arrOutXYArray.Add(OutPoint);
-									dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-									dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-									dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-									dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-									dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-									dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-									dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-									dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-									dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+									m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+									m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+									m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+									m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+									m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+									m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+									m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+									m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+									m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 								}
 								while (dDistanceSum >= S1 && dDistanceSum < (S1 + S2))
 								{
@@ -2087,15 +2117,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 									m_arrOutVTArray.Add(OutVT);
 									m_arrOutVxVyArray.Add(OutVxVy);
 									m_arrOutXYArray.Add(OutPoint);
-									dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-									dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-									dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-									dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-									dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-									dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-									dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-									dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-									dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+									m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+									m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+									m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+									m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+									m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+									m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+									m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+									m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+									m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 								}
 								while (dDistanceSum >= (S1 + S2) && dDistanceSum < m_dCurrentDistance)
 								{
@@ -2114,15 +2144,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 									m_arrOutVTArray.Add(OutVT);
 									m_arrOutVxVyArray.Add(OutVxVy);
 									m_arrOutXYArray.Add(OutPoint);
-									dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-									dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-									dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-									dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-									dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-									dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-									dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-									dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-									dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+									m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+									m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+									m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+									m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+									m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+									m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+									m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+									m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+									m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 								}
 							}
 						}
@@ -2139,15 +2169,15 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 							m_arrOutVTArray.Add(OutVT);
 							m_arrOutVxVyArray.Add(OutVxVy);
 							m_arrOutXYArray.Add(OutPoint);
-							dMaxOutX = CheckMax(dMaxOutX, OutPoint.x);
-							dMaxOutY = CheckMax(dMaxOutY, OutPoint.y);
-							dMinOutX = CheckMin(dMinOutX, OutPoint.x);
-							dMinOutY = CheckMin(dMinOutY, OutPoint.y);
-							dMaxOutV = CheckMax(dMaxOutV, OutVT.v);
-							dMaxOutVx = CheckMax(dMaxOutVx, OutVxVy.x);
-							dMinOutVx = CheckMin(dMinOutVx, OutVxVy.x);
-							dMaxOutVy = CheckMax(dMaxOutVy, OutVxVy.y);
-							dMinOutVy = CheckMin(dMinOutVy, OutVxVy.y);
+							m_dMaxOutX = CheckMax(m_dMaxOutX, OutPoint.x);
+							m_dMaxOutY = CheckMax(m_dMaxOutY, OutPoint.y);
+							m_dMinOutX = CheckMin(m_dMinOutX, OutPoint.x);
+							m_dMinOutY = CheckMin(m_dMinOutY, OutPoint.y);
+							m_dMaxOutV = CheckMax(m_dMaxOutV, OutVT.v);
+							m_dMaxOutVx = CheckMax(m_dMaxOutVx, OutVxVy.x);
+							m_dMinOutVx = CheckMin(m_dMinOutVx, OutVxVy.x);
+							m_dMaxOutVy = CheckMax(m_dMaxOutVy, OutVxVy.y);
+							m_dMinOutVy = CheckMin(m_dMinOutVy, OutVxVy.y);
 						}
 						else
 						{
@@ -2209,7 +2239,7 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 
 		FILE* ResultFile;
 		ResultFile = fopen(CT2A(m_cOutputPathName), "w");
-		fprintf(ResultFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", m_dTimeStart, dMaxOutV, dMaxOutX, dMinOutX, dMaxOutY, dMinOutY, dMaxOutVx, dMinOutVx, dMaxOutVy, dMinOutVy, dMaxOutA, dMinOutA);
+		fprintf(ResultFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", m_dTimeStart, m_dMaxOutV, m_dMaxOutX, m_dMinOutX, m_dMaxOutY, m_dMinOutY, m_dMaxOutVx, m_dMinOutVx, m_dMaxOutVy, m_dMinOutVy, m_dMaxOutA, m_dMinOutA);
 		fclose(ResultFile);
 		ResultFile = fopen(CT2A(m_cOutputPathName), "a");
 		char tmp[1000];
