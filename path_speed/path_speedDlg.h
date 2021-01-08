@@ -132,6 +132,7 @@ public:
 	afx_msg void OnBnClickedButtonSelectPlot();
 	afx_msg void OnBnClickedButtonSimulation();
 	afx_msg void OnCbnSelchangeComboPlotType();
+	afx_msg void OnDestroy();
 	CComboBox m_cbPlotType;
 	CDC m_dcMem;
 	CBitmap m_bmp;

@@ -87,7 +87,7 @@ BEGIN_MESSAGE_MAP(CpathspeedDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_SELECT_PLOT, &CpathspeedDlg::OnBnClickedButtonSelectPlot)
 	ON_BN_CLICKED(IDC_BUTTON_SIMULATION, &CpathspeedDlg::OnBnClickedButtonSimulation)
 	ON_CBN_SELCHANGE(IDC_COMBO_PLOT_TYPE, &CpathspeedDlg::OnCbnSelchangeComboPlotType)
-//	ON_WM_CTLCOLOR()
+	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
 
@@ -570,7 +570,6 @@ void CpathspeedDlg::PlotChart(int PlotFlag)
 		PlotFlag++;
 	}
 	fclose(fpResult);
-	m_bmp.DeleteObject();
 }
 
 
@@ -1894,14 +1893,11 @@ void CpathspeedDlg::OnBnClickedButtonPlot()
 	{
 		KillTimer(0);
 		fclose(fpResult);
-		m_dcMem.DeleteDC();
-		m_bmp.DeleteObject();
 		m_bSimulationFlag = FALSE;
 		GetDlgItem(IDC_BUTTON_SIMULATION)->SetWindowTextW(_T("simulation"));
 		m_bPlotFlag = TRUE;
 		m_bZoomFlag = TRUE;
 		PlotResult();
-		m_dcMem.DeleteDC();
 		m_cSimuTime.Format(_T("%.3f"), 0.0);
 		GetDlgItem(IDC_STATIC_SIMU_TIME)->SetWindowTextW(m_cSimuTime);
 	}
@@ -1910,7 +1906,6 @@ void CpathspeedDlg::OnBnClickedButtonPlot()
 		m_bPlotFlag = TRUE;
 		m_bZoomFlag = FALSE;
 		PlotResult();
-		m_dcMem.DeleteDC();
 		m_cSimuTime.Format(_T("%.3f"), 0.0);
 		GetDlgItem(IDC_STATIC_SIMU_TIME)->SetWindowTextW(m_cSimuTime);
 	}
@@ -1927,14 +1922,11 @@ void CpathspeedDlg::OnBnClickedButtonZoom()
 	{
 		KillTimer(0);
 		fclose(fpResult);
-		m_dcMem.DeleteDC();
-		m_bmp.DeleteObject();
 		m_bSimulationFlag = FALSE;
 		GetDlgItem(IDC_BUTTON_SIMULATION)->SetWindowTextW(_T("simulation"));
 		m_bPlotFlag = TRUE;
 		m_bZoomFlag = TRUE;
 		PlotResult();
-		m_dcMem.DeleteDC();
 		m_cSimuTime.Format(_T("%.3f"), 0.0);
 		GetDlgItem(IDC_STATIC_SIMU_TIME)->SetWindowTextW(m_cSimuTime);
 	}
@@ -1943,7 +1935,6 @@ void CpathspeedDlg::OnBnClickedButtonZoom()
 		m_bPlotFlag = TRUE;
 		m_bZoomFlag = TRUE;
 		PlotResult();
-		m_dcMem.DeleteDC();
 		m_cSimuTime.Format(_T("%.3f"), 0.0);
 		GetDlgItem(IDC_STATIC_SIMU_TIME)->SetWindowTextW(m_cSimuTime);
 	}
@@ -2000,7 +1991,6 @@ void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
 				
 				KillTimer(0);
 				fclose(fpResult);
-				m_bmp.DeleteObject();
 
 				m_bSimulationFlag = FALSE;
 				GetDlgItem(IDC_BUTTON_SIMULATION)->SetWindowTextW(_T("simulation"));
@@ -2074,8 +2064,7 @@ void CpathspeedDlg::OnBnClickedButtonSimulation()
 	{
 		KillTimer(0);
 		fclose(fpResult);
-		m_dcMem.DeleteDC();
-		m_bmp.DeleteObject();
+		
 		m_bSimulationFlag = FALSE;
 		GetDlgItem(IDC_BUTTON_SIMULATION)->SetWindowTextW(_T("simulation"));
 	}
@@ -2087,3 +2076,11 @@ void CpathspeedDlg::OnCbnSelchangeComboPlotType()
 	OnBnClickedButtonPlot();
 }
 
+
+void CpathspeedDlg::OnDestroy()
+{
+	CDialogEx::OnDestroy();
+
+	m_bmp.DeleteObject();
+	m_dcMem.DeleteDC();
+}
