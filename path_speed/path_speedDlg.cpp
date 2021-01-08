@@ -753,8 +753,7 @@ int CpathspeedDlg::GetResultHead(int PlotFlag)
 
 void CpathspeedDlg::SelectFile()
 {
-	TCHAR* path = new TCHAR[MAX_PATH];
-	ZeroMemory(path, MAX_PATH);
+	TCHAR path[MAX_PATH] = { 0 };
 	GetCurrentDirectory(MAX_PATH, path);
 	m_cOutTmpPathName.Format(_T("%s"), path);
 	m_cOutTmpPathName.Append(_T("\\tmpResult.csv"));
