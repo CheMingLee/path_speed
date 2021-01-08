@@ -111,7 +111,7 @@ private:
 	void AddOutData(double dXRatio, double dYRatio, double dDistanceSum, int i);
 public:
 	double m_dSampleTime, m_dThetaMax, m_dPlotXmin, m_dPlotXmax, m_dPlotYmin, m_dPlotYmax; // 系統參數
-	bool m_bPlotFlag, m_bZoomFlag, m_bSimulationFlag, m_bPlotVflag, m_bPlotAflag;
+	bool m_bOutFlag, m_bPlotFlag, m_bZoomFlag, m_bSimulationFlag, m_bPlotVflag, m_bPlotAflag;
 	double m_dXscale, m_dYscale, m_dXscaleConst, m_dYscaleConst; // m_dXscale * X + m_dXscaleConst = X_pixel
 	double CheckTheta(double CosTheta, double SinTheta, double Theta);
 	double CheckMax(double a, double b);
@@ -132,6 +132,7 @@ public:
 	afx_msg void OnBnClickedButtonSelectPlot();
 	afx_msg void OnBnClickedButtonSimulation();
 	afx_msg void OnCbnSelchangeComboPlotType();
+	afx_msg void OnDestroy();
 	CComboBox m_cbPlotType;
 	CDC m_dcMem;
 	CBitmap m_bmp;
