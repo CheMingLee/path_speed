@@ -340,5 +340,6 @@ ASALocalRun/
 healthchecksdb
 
 # command and result files
+demo_files/
 *.txt
 *.csv
