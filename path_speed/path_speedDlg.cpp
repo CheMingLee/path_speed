@@ -123,6 +123,7 @@ BOOL CpathspeedDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 設定小圖示
 
 	// TODO: 在此加入額外的初始設定
+	m_bOutFlag = TRUE;
 	m_bPlotFlag = FALSE;
 	m_bZoomFlag = FALSE;
 	m_bSimulationFlag = FALSE;
@@ -624,18 +625,23 @@ void CpathspeedDlg::ReadCommand(CString pathName)
 			}
 			else
 			{
-				MessageBox(_T("Cmd Error"));
+				MessageBox(_T("Cmd Error: 讀取命令中出現未定義的命令，略過此命令"));
+				strFileStr.Empty();
+				strFileCmd.Empty();
 			}
-			strFileStr = strFileStr.TrimLeft(strFileCmd).TrimLeft(_T(" ,\n"));
-			iflag = 0;
-			while (strFileStr.IsEmpty() == 0 && iflag < sizeof(Cmd.m_dParams))
+			if (strFileStr.IsEmpty() == 0)
 			{
-				Cmd.m_dParams[iflag] = _tstof(strFileStr.SpanExcluding(_T(" ,\n")));
-				strFileStr = strFileStr.TrimLeft(strFileStr.SpanExcluding(_T(" ,\n"))).TrimLeft(_T(" ,\n"));
-				iflag++;
+				strFileStr = strFileStr.TrimLeft(strFileCmd).TrimLeft(_T(" ,\n"));
+				iflag = 0;
+				while (strFileStr.IsEmpty() == 0 && iflag < sizeof(Cmd.m_dParams))
+				{
+					Cmd.m_dParams[iflag] = _tstof(strFileStr.SpanExcluding(_T(" ,\n")));
+					strFileStr = strFileStr.TrimLeft(strFileStr.SpanExcluding(_T(" ,\n"))).TrimLeft(_T(" ,\n"));
+					iflag++;
+				}
+				m_arrCmdArray.Add(Cmd);
+				strFileStr.Empty();
 			}
-			m_arrCmdArray.Add(Cmd);
-			strFileStr.Empty();
 		}
 	}
 	FileCMD.Close();
@@ -1783,9 +1789,14 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 					m_iCmdFlag = i;
 					if (m_iCmdFlag < 3)
 					{
-						MessageBox(_T("條件不足，直接輸出已計算結果"));
+						MessageBox(_T("條件不足，計算結束"));
 						i = m_arrCmdArray.GetSize();
+						m_bOutFlag = FALSE;
 						break;
+					}
+					else
+					{
+						m_bOutFlag = TRUE;
 					}
 
 					// 讀這條命令，取得這條命令的資訊，加入線段起終點
@@ -1836,36 +1847,39 @@ void CpathspeedDlg::OnBnClickedButtonCaculate()
 			}	
 		}
 
-		// close file
-		m_arrOutXYArray.RemoveAll();
-		m_arrOutVTArray.RemoveAll();
-		m_arrPathPointArray.RemoveAll();
-		m_arrPathVAMaxArray.RemoveAll();
-		fclose(OutFile);
-		OutFile = fopen(CT2A(m_cOutTmpPathName), "r");
-
-		if (MessageBox(_T("目前結果將會儲存在: ")+ m_cOutputPathName+_T("\n若需改變存檔位置請按否"), _T("計算完成"), MB_YESNO) == IDNO)
+		if (m_bOutFlag)
 		{
-			TCHAR szFilters[] = _T("CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||");
-			CFileDialog fileDlg(FALSE, _T("csv"), _T("*.csv"), OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters);
-			if (fileDlg.DoModal() == IDOK)
+			// close file
+			m_arrOutXYArray.RemoveAll();
+			m_arrOutVTArray.RemoveAll();
+			m_arrPathPointArray.RemoveAll();
+			m_arrPathVAMaxArray.RemoveAll();
+			fclose(OutFile);
+			OutFile = fopen(CT2A(m_cOutTmpPathName), "r");
+
+			if (MessageBox(_T("目前結果將會儲存在: ") + m_cOutputPathName + _T("\n若需改變存檔位置請按否"), _T("計算完成"), MB_YESNO) == IDNO)
 			{
-				m_cOutputPathName = fileDlg.GetPathName();
+				TCHAR szFilters[] = _T("CSV Files (*.csv)|*.csv|All Files (*.*)|*.*||");
+				CFileDialog fileDlg(FALSE, _T("csv"), _T("*.csv"), OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters);
+				if (fileDlg.DoModal() == IDOK)
+				{
+					m_cOutputPathName = fileDlg.GetPathName();
+				}
 			}
-		}
 
-		FILE* ResultFile;
-		ResultFile = fopen(CT2A(m_cOutputPathName), "w");
-		fprintf(ResultFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", m_dTimeStart, m_dMaxOutV, m_dMaxOutX, m_dMinOutX, m_dMaxOutY, m_dMinOutY, m_dMaxOutVx, m_dMinOutVx, m_dMaxOutVy, m_dMinOutVy, m_dMaxOutA, m_dMinOutA);
-		fclose(ResultFile);
-		ResultFile = fopen(CT2A(m_cOutputPathName), "a");
-		char tmp[1000];
-		while ((fgets(tmp, 1000, OutFile)) != NULL)
-		{
-			fputs(tmp, ResultFile);
+			FILE* ResultFile;
+			ResultFile = fopen(CT2A(m_cOutputPathName), "w");
+			fprintf(ResultFile, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", m_dTimeStart, m_dMaxOutV, m_dMaxOutX, m_dMinOutX, m_dMaxOutY, m_dMinOutY, m_dMaxOutVx, m_dMinOutVx, m_dMaxOutVy, m_dMinOutVy, m_dMaxOutA, m_dMinOutA);
+			fclose(ResultFile);
+			ResultFile = fopen(CT2A(m_cOutputPathName), "a");
+			char tmp[1000];
+			while ((fgets(tmp, 1000, OutFile)) != NULL)
+			{
+				fputs(tmp, ResultFile);
+			}
+			fclose(ResultFile);
+			fclose(OutFile);
 		}
-		fclose(ResultFile);
-		fclose(OutFile);
 	}
 }
 
@@ -1966,6 +1980,8 @@ void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
 
 		len = 1.0 * (m_tSimuEnd - m_tSimuStart) / m_dSampleTime;
 
+		bool b_EOFflag = FALSE;
+
 		for (int i = 0; i < len; i++)
 		{
 			if (fscanf(fpResult, "%lf,%lf,%lf\n", &dResultData[0], &dResultData[1], &dResultData[2]) != EOF)
@@ -1984,17 +2000,21 @@ void CpathspeedDlg::OnTimer(UINT_PTR nIDEvent)
 				
 				KillTimer(0);
 				fclose(fpResult);
-				m_dcMem.DeleteDC();
 				m_bmp.DeleteObject();
 
 				m_bSimulationFlag = FALSE;
 				GetDlgItem(IDC_BUTTON_SIMULATION)->SetWindowTextW(_T("simulation"));
+
+				b_EOFflag = TRUE;
 			}
 		}
-		dc.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &m_dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
-		m_tSimuStart = clock();
-		m_cSimuTime.Format(_T("%.3f"), dResultData[0]);
-		GetDlgItem(IDC_STATIC_SIMU_TIME)->SetWindowTextW(m_cSimuTime);
+		if (!b_EOFflag)
+		{
+			dc.BitBlt(m_rectPlotSpace.left, m_rectPlotSpace.top, m_rectPlotSpace.right, m_rectPlotSpace.bottom, &m_dcMem, m_rectPlotSpace.left, m_rectPlotSpace.top, SRCCOPY);
+			m_tSimuStart = clock();
+			m_cSimuTime.Format(_T("%.3f"), dResultData[0]);
+			GetDlgItem(IDC_STATIC_SIMU_TIME)->SetWindowTextW(m_cSimuTime);
+		}
 	}
 
 	CDialogEx::OnTimer(nIDEvent);
