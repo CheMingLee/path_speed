@@ -7,6 +7,9 @@
 #include "path_speed.h"
 #include "path_speedDlg.h"
 #include "afxdialogex.h"
+#include <stdio.h>
+#define min(a,b) (((a)<(b))?(a):(b))
+#define max(a,b) (((a)>(b))?(a):(b))
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -699,18 +702,20 @@ double CpathspeedDlg::CheckTheta(double CosTheta, double SinTheta, double Theta)
 {
 	if (SinTheta < 0) // 三四象限
 	{
-		if (CosTheta > 0) // 第四象限
-		{
-			Theta = 2.0 * PI - Theta;
-		}
-		else if (CosTheta < 0) // 第三象限
-		{
-			Theta = Theta + (PI - Theta);
-		}
-		else // y軸上
-		{
-			Theta = 1.5 * PI;
-		}
+		Theta = 2.0 * PI - Theta;
+		
+		//if (CosTheta > 0) // 第四象限
+		//{
+		//	Theta = 2.0 * PI - Theta;
+		//}
+		//else if (CosTheta < 0) // 第三象限
+		//{
+		//	Theta = Theta + (PI - Theta);
+		//}
+		//else // y軸上
+		//{
+		//	Theta = 1.5 * PI;
+		//}
 	}
 	return Theta;
 }
@@ -825,11 +830,13 @@ void CpathspeedDlg::CalArcPoint(POINTXY BeginP, CMD Cmd, double speed[2], double
 		{
 			dCosThetaStart = (BeginP.x - ArcCenterPoint.x) / dRadius;
 			dSinThetaStart = (BeginP.y - ArcCenterPoint.y) / dRadius;
-			dThetaStart = acos((BeginP.x - ArcCenterPoint.x) / dRadius); // 範圍[0, PI]
+			dCosThetaStart = min(max(dCosThetaStart, -1), 1);
+			dThetaStart = acos(dCosThetaStart); // 範圍[0, PI]
 			dThetaStart = CheckTheta(dCosThetaStart, dSinThetaStart, dThetaStart); // 轉為[0, 2*PI]
 			dCosThetaEnd = (ArcEndPoint.x - ArcCenterPoint.x) / dRadius;
 			dSinThetaEnd = (ArcEndPoint.y - ArcCenterPoint.y) / dRadius;
-			dThetaEnd = acos((ArcEndPoint.x - ArcCenterPoint.x) / dRadius); // 範圍[0, PI]
+			dCosThetaEnd = min(max(dCosThetaEnd, -1), 1);
+			dThetaEnd = acos(dCosThetaEnd); // 範圍[0, PI]
 			dThetaEnd = CheckTheta(dCosThetaEnd, dSinThetaEnd, dThetaEnd); // 轉為[0, 2*PI]
 			if (dDirection >= 0.0) // 逆時針
 			{
